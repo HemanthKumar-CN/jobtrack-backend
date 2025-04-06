@@ -1,16 +1,9 @@
 const { DataTypes } = require("sequelize");
-const Role = require("./Role");
 const sequelize = require("../config/database");
 
-const User = sequelize.define(
-  "User",
+const Contractor = sequelize.define(
+  "Contractor",
   {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      allowNull: false,
-      primaryKey: true,
-    },
     first_name: {
       type: DataTypes.STRING,
       allowNull: false,
@@ -19,39 +12,45 @@ const User = sequelize.define(
       type: DataTypes.STRING,
       allowNull: false,
     },
-    image_url: {
+    company_name: {
       type: DataTypes.STRING,
-      allowNull: true,
+      allowNull: false,
     },
     email: {
       type: DataTypes.STRING,
       allowNull: false,
       unique: true,
     },
-    password: {
+    address_1: {
       type: DataTypes.STRING,
       allowNull: false,
     },
-    role_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: "roles",
-        key: "id",
-      },
-    },
-    deleted_at: {
-      type: DataTypes.DATE,
+    address_2: {
+      type: DataTypes.STRING,
       allowNull: true,
+    },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    state: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    zip: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    phone: {
+      type: DataTypes.STRING,
+      allowNull: false,
     },
   },
   {
-    tableName: "users",
+    tableName: "Contractors",
     timestamps: true,
     underscored: true,
   },
 );
 
-User.belongsTo(Role, { foreignKey: "role_id" });
-
-module.exports = User;
+module.exports = Contractor;

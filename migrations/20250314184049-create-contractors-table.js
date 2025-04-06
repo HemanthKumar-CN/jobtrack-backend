@@ -3,52 +3,53 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("schedules", {
+    await queryInterface.createTable("Contractors", {
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
         primaryKey: true,
         allowNull: false,
       },
-      employee_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: "employees",
-          key: "id",
-        },
-        onDelete: "CASCADE",
-      },
-      location_id: {
-        type: Sequelize.INTEGER,
-        allowNull: false,
-        references: {
-          model: "locations",
-          key: "id",
-        },
-        onDelete: "CASCADE",
-      },
-      shift_date: {
-        type: Sequelize.DATEONLY,
+      first_name: {
+        type: Sequelize.STRING,
         allowNull: false,
       },
-      start_time: {
-        type: Sequelize.TIME,
+      last_name: {
+        type: Sequelize.STRING,
         allowNull: false,
       },
-      end_time: {
-        type: Sequelize.TIME,
+      company_name: {
+        type: Sequelize.STRING,
         allowNull: false,
       },
-      status: {
-        type: Sequelize.ENUM("scheduled", "completed", "cancelled"),
+      email: {
+        type: Sequelize.STRING,
         allowNull: false,
-        defaultValue: "scheduled",
+        unique: true,
       },
-      is_deleted: {
-        type: Sequelize.BOOLEAN,
+      address_1: {
+        type: Sequelize.STRING,
         allowNull: false,
-        defaultValue: false,
+      },
+      address_2: {
+        type: Sequelize.STRING,
+        allowNull: true,
+      },
+      city: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      state: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      zip: {
+        type: Sequelize.STRING,
+        allowNull: false,
+      },
+      phone: {
+        type: Sequelize.STRING,
+        allowNull: false,
       },
       created_at: {
         type: Sequelize.DATE,
@@ -64,6 +65,6 @@ module.exports = {
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("schedules");
+    await queryInterface.dropTable("Contractors");
   },
 };

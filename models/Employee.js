@@ -37,12 +37,7 @@ const Employee = sequelize.define(
     phone: {
       type: DataTypes.STRING,
     },
-    status: {
-      type: DataTypes.STRING,
-    },
-    position: {
-      type: DataTypes.STRING,
-    },
+
     date_of_birth: {
       type: DataTypes.DATE,
     },
@@ -54,6 +49,14 @@ const Employee = sequelize.define(
     },
     emergency_contact_phone: {
       type: DataTypes.STRING,
+    },
+    notification_preference: {
+      type: DataTypes.STRING,
+    },
+    type: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: "A-List", // Default value if needed
     },
   },
   {

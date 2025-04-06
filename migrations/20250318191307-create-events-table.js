@@ -3,58 +3,57 @@
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    await queryInterface.createTable("users", {
+    await queryInterface.createTable("Events", {
       id: {
         type: Sequelize.INTEGER,
         autoIncrement: true,
-        allowNull: false,
         primaryKey: true,
+        allowNull: false,
       },
-      first_name: {
+      event_name: {
         type: Sequelize.STRING,
         allowNull: false,
       },
-      last_name: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
-      email: {
-        type: Sequelize.STRING,
-        allowNull: false,
-        unique: true,
-      },
-      password: {
-        type: Sequelize.STRING,
-        allowNull: false,
-      },
-      role_id: {
+      contractor_id: {
         type: Sequelize.INTEGER,
-        allowNull: false,
         references: {
-          model: "roles",
+          model: "Contractors",
           key: "id",
         },
         onUpdate: "CASCADE",
         onDelete: "SET NULL",
       },
-      image_url: {
-        type: DataTypes.STRING,
-        allowNull: true,
+      location_id: {
+        type: Sequelize.INTEGER,
+        references: {
+          model: "locations",
+          key: "id",
+        },
+        onUpdate: "CASCADE",
+        onDelete: "SET NULL",
+      },
+      start_date: {
+        type: Sequelize.DATE,
+        allowNull: false,
+      },
+      end_date: {
+        type: Sequelize.DATE,
+        allowNull: false,
       },
       created_at: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.NOW,
+        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
       },
       updated_at: {
         type: Sequelize.DATE,
         allowNull: false,
-        defaultValue: Sequelize.NOW,
+        defaultValue: Sequelize.literal("CURRENT_TIMESTAMP"),
       },
     });
   },
 
   async down(queryInterface, Sequelize) {
-    await queryInterface.dropTable("users");
+    await queryInterface.dropTable("Events");
   },
 };

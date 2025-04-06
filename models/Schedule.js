@@ -1,7 +1,7 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../config/database");
 const Employee = require("./Employee");
-const Location = require("./Location");
+const Event = require("./Events");
 
 const Schedule = sequelize.define(
   "Schedule",
@@ -20,26 +20,41 @@ const Schedule = sequelize.define(
         key: "id",
       },
     },
-    location_id: {
+    task_event_id: {
       type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: "locations",
+        model: "events",
         key: "id",
       },
     },
-    shift_date: {
+    title: {
+      type: DataTypes.STRING,
+      allowNull: false,
+    },
+    description: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
+    start_date: {
       type: DataTypes.DATEONLY,
       allowNull: false,
     },
+    end_date: {
+      type: DataTypes.DATEONLY,
+      allowNull: false,
+    },
+
     start_time: {
       type: DataTypes.TIME,
       allowNull: false,
     },
+
     end_time: {
       type: DataTypes.TIME,
       allowNull: false,
     },
+
     status: {
       type: DataTypes.ENUM("scheduled", "completed", "cancelled"),
       allowNull: false,
@@ -60,6 +75,6 @@ const Schedule = sequelize.define(
 
 // Define relationships
 Schedule.belongsTo(Employee, { foreignKey: "employee_id" });
-Schedule.belongsTo(Location, { foreignKey: "location_id" });
+Schedule.belongsTo(Event, { foreignKey: "task_event_id" });
 
 module.exports = Schedule;

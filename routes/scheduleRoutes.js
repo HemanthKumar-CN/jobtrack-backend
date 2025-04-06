@@ -11,11 +11,18 @@ const {
   exportSchedulesExcel,
   exportSchedulesByLocationCSV, // Added
   exportExceeding40HoursReport,
+  createBulkSchedule,
+  getWeeklySchedules,
+  getMonthlySchedules,
+  employeeSchedules,
 } = require("../controllers/scheduleController");
 
-router.post("/", createSchedule);
-router.get("/", getSchedules);
+router.post("/", createBulkSchedule);
+router.get("/:date", getSchedules);
+router.get("/monthlySchedule/:month", getMonthlySchedules);
+router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
+router.get("/employee_schedule/:employee_id", employeeSchedules);
 router.delete("/:id", deleteSchedule); // Soft delete
 router.get("/check-availability", checkEmployeeAvailability);
 router.get("/report", getSchedulesReport);

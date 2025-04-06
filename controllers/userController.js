@@ -1,4 +1,7 @@
 const User = require("../models/User");
+const jwt = require("jsonwebtoken");
+const bcrypt = require("bcrypt");
+const Role = require("../models/Role");
 
 exports.getAllUsers = async (req, res) => {
   try {
@@ -7,6 +10,80 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+};
+
+exports.userLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // ✅ Find user by email
+    const user = await User.findOne({
+      where: { email },
+      include: [{ model: Role, attributes: ["name"] }], // Fetch role name
+    });
+
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+    // ✅ Compare password
+    const isMatch = await bcrypt.compare(password, user.password);
+    console.log(isMatch, "=====");
+    if (!isMatch)
+      return res.status(401).json({ message: "Invalid credentials" });
+
+    // ✅ Generate JWT with role_name
+    const token = jwt.sign(
+      { userId: user.id, roleName: user.Role.name }, // ✅ Store roleName instead of role_id
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" },
+    );
+
+    // ✅ Set JWT in cookies
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Strict",
+    });
+
+    // ✅ Send roleName to frontend
+    res
+      .status(200)
+      .json({ message: "Login successful", roleName: user.Role.name });
+  } catch (error) {
+    console.error("Login error:", error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+exports.userChangePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const user = await User.findByPk(req.user.userId); // Get user from token
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    // Verify current password
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Current password is incorrect" });
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await user.update({ password: hashedPassword });
+
+    res.json({ message: "Password updated successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Something went wrong" });
+  }
+};
+
+exports.userLogout = async (req, res) => {
+  res.clearCookie("token", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "Strict",
+  });
+
+  return res.json({ message: "Logged out Successfully" });
 };
 
 exports.createUser = async (req, res) => {
