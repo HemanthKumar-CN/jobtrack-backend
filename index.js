@@ -30,13 +30,18 @@ const reportRoutes = require("./routes/reportRoutes");
 
 const sequelize = require("./config/database");
 const { authenticateUser } = require("./utils/authenticateUser");
-app.use("/users", userRoutes);
+
+app.get("/", (req, res) => {
+  res.send("✅ Backend API Running!");
+});
+
+app.use("/api/users", userRoutes);
 app.use(authenticateUser, require("./routes/locationRoutes"));
-app.use("/employees", authenticateUser, employeeRoutes);
-app.use("/schedules", authenticateUser, scheduleRoutes);
-app.use("/contractors", authenticateUser, contractorRoutes);
-app.use("/events", authenticateUser, eventRoutes);
-app.use("/reports", authenticateUser, reportRoutes);
+app.use("/api/employees", authenticateUser, employeeRoutes);
+app.use("/api/schedules", authenticateUser, scheduleRoutes);
+app.use("/api/contractors", authenticateUser, contractorRoutes);
+app.use("/api/events", authenticateUser, eventRoutes);
+app.use("/api/reports", authenticateUser, reportRoutes);
 
 // Sync database
 sequelize
