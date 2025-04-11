@@ -555,11 +555,20 @@ const getMonthlySchedules = async (req, res) => {
     // Compute first and last day of the month
 
     // const startOfMonth = new Date(`${month}-01`);
-    const startOfMonth = new Date(`${month}-01T00:00:00Z`);
+    // const startOfMonth = new Date(`${month}-01T00:00:00Z`);
 
-    const endOfMonth = new Date(startOfMonth);
-    endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-    endOfMonth.setDate(0); // Last day of the month
+    // const endOfMonth = new Date(startOfMonth);
+    // endOfMonth.setMonth(endOfMonth.getMonth() + 1);
+    // endOfMonth.setDate(0); // Last day of the month
+
+    // Get first and last day of the month in UTC-safe way
+    const startOfMonth = new Date(`${month}-01T00:00:00.000Z`);
+    const [year, monthStr] = month.split("-");
+    const yearNum = parseInt(year, 10);
+    const monthNum = parseInt(monthStr, 10);
+
+    // Get last day of the month
+    const endOfMonth = new Date(Date.UTC(yearNum, monthNum, 0)); // 0 means last day of previous month (after month + 1)
 
     console.log("Fetching schedules from:", startOfMonth, "to", endOfMonth);
 
