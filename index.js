@@ -1,3 +1,6 @@
+// ✅ First line: Set up logging
+require("./logger");
+
 require("dotenv").config();
 const express = require("express");
 const bodyParser = require("body-parser");

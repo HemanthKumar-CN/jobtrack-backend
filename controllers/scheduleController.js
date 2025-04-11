@@ -554,7 +554,9 @@ const getMonthlySchedules = async (req, res) => {
 
     // Compute first and last day of the month
 
-    const startOfMonth = new Date(`${month}-01`);
+    // const startOfMonth = new Date(`${month}-01`);
+    const startOfMonth = new Date(`${month}-01T00:00:00Z`);
+
     const endOfMonth = new Date(startOfMonth);
     endOfMonth.setMonth(endOfMonth.getMonth() + 1);
     endOfMonth.setDate(0); // Last day of the month
