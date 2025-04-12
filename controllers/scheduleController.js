@@ -651,8 +651,17 @@ const employeeSchedules = async (req, res) => {
     const { employee_id } = req.params;
     const { status, startDate, endDate } = req.query;
 
+    const employeeId = await Employee.findOne({
+      where: {
+        user_id: req.user.userId,
+      },
+      attributes: ["id"],
+    });
+
+    console.log(employeeId.getDataValue("id"), "????----Employeeeeee");
+
     let whereCondition = {
-      employee_id,
+      employee_id: employeeId.getDataValue("id"),
       is_deleted: false,
     };
 
