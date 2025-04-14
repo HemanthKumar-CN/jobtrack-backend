@@ -7,6 +7,7 @@ const { Op } = require("sequelize");
 const Schedule = require("../models/Schedule");
 const moment = require("moment");
 const Event = require("../models/Events");
+const sendWelcomeEmail = require("../utils/mailer");
 
 exports.createEmployee = async (req, res) => {
   const transaction = await sequelize.transaction(); // Start transaction
@@ -80,6 +81,8 @@ exports.createEmployee = async (req, res) => {
 
     // ✅ Commit transaction if everything is successful
     await transaction.commit();
+
+    await sendWelcomeEmail(email, first_name, tempPassword);
 
     // TODO: Send this temp password via email to the user (implement email service)
 
