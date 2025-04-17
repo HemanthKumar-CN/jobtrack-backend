@@ -101,22 +101,42 @@ exports.createEmployee = async (req, res) => {
 
 exports.getAllEmployees = async (req, res) => {
   try {
-    const { search = "", page = 1, limit = 10 } = req.query; // Default pagination values
+    const { search = "", page = 1, limit = 10, status } = req.query; // Default pagination values
     const offset = (page - 1) * limit;
 
     // Build query conditions for search
-    const whereClause = search
-      ? {
-          [Op.or]: [
-            { "$User.first_name$": { [Op.iLike]: `%${search}%` } }, // Search by first name
-            { "$User.last_name$": { [Op.iLike]: `%${search}%` } }, // Search by last name
-            { "$User.email$": { [Op.iLike]: `%${search}%` } }, // Search by email
-          ],
-        }
-      : {};
+    // const whereClause = search
+    //   ? {
+    //       [Op.or]: [
+    //         { "$User.first_name$": { [Op.iLike]: `%${search}%` } }, // Search by first name
+    //         { "$User.last_name$": { [Op.iLike]: `%${search}%` } }, // Search by last name
+    //         { "$User.email$": { [Op.iLike]: `%${search}%` } }, // Search by email
+    //       ],
+    //     }
+    //   : {};
+
+    const whereClause = {
+      ...(search && {
+        [Op.or]: [
+          { "$User.first_name$": { [Op.iLike]: `%${search}%` } },
+          { "$User.last_name$": { [Op.iLike]: `%${search}%` } },
+          { "$User.email$": { [Op.iLike]: `%${search}%` } },
+        ],
+      }),
+      ...(status && { status }), // <--- Add status to where clause if provided
+    };
 
     // Fetch employees with pagination
     const { count, rows: employees } = await Employee.findAndCountAll({
+      attributes: [
+        "id",
+        "address_1",
+        "address_2",
+        "city",
+        "state",
+        "type",
+        "status",
+      ],
       include: {
         model: User,
         attributes: ["id", "first_name", "last_name", "email"],
@@ -367,6 +387,174 @@ exports.getEmployeeSchedulesWeek = async (req, res) => {
   } catch (error) {
     console.error("Error fetching employee hours:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+exports.getEmployeeSchedulesLocationWeek = async (req, res) => {
+  try {
+    const { employee_id, location_id, date_range } = req.body;
+
+    const [fromDate, toDate] = date_range.map((date) =>
+      moment(date).format("YYYY-MM-DD"),
+    );
+
+    const schedules = await Schedule.findAll({
+      where: {
+        employee_id,
+        is_deleted: false,
+        start_date: { [Op.lte]: toDate },
+        end_date: { [Op.gte]: fromDate },
+      },
+      include: [
+        {
+          model: Event,
+          where: {
+            location_id,
+          },
+        },
+        {
+          model: Employee,
+        },
+      ],
+    });
+
+    const resultByWeek = {};
+
+    for (const schedule of schedules) {
+      const start = moment.max(moment(schedule.start_date), moment(fromDate));
+      const end = moment.min(moment(schedule.end_date), moment(toDate));
+
+      const startTime = moment(schedule.start_time, "HH:mm:ss");
+      const endTime = moment(schedule.end_time, "HH:mm:ss");
+      const dailyDuration = moment.duration(endTime.diff(startTime)).asHours();
+
+      for (
+        let day = start.clone();
+        day.isSameOrBefore(end);
+        day.add(1, "day")
+      ) {
+        const weekStart = day.clone().startOf("isoWeek");
+        const weekEnd = day.clone().endOf("isoWeek");
+        const weekLabel = `${weekStart.format(
+          "MMMM D, YYYY",
+        )} - ${weekEnd.format("MMMM D, YYYY")}`;
+
+        if (!resultByWeek[weekLabel]) {
+          resultByWeek[weekLabel] = {
+            total_hours: 0,
+            events: [],
+          };
+        }
+
+        // Find or create event summary in the week's events list
+        let eventSummary = resultByWeek[weekLabel].events.find(
+          (e) =>
+            e.title === schedule.title &&
+            e.start_time === schedule.start_time &&
+            e.end_time === schedule.end_time,
+        );
+
+        if (!eventSummary) {
+          eventSummary = {
+            title: schedule.title,
+            start_time: schedule.start_time,
+            end_time: schedule.end_time,
+            duration_hours_per_day: dailyDuration,
+            total_days: 0,
+          };
+          resultByWeek[weekLabel].events.push(eventSummary);
+        }
+
+        // Accumulate
+        eventSummary.total_days += 1;
+        resultByWeek[weekLabel].total_hours += dailyDuration;
+      }
+    }
+
+    res.json({ success: true, schedules_by_week: resultByWeek });
+  } catch (err) {
+    console.error("Error fetching weekly schedules:", err);
+    res.status(500).json({ success: false, error: "Internal Server Error" });
+  }
+};
+
+exports.getLocationScheduleWeek = async (req, res) => {
+  try {
+    const { location_id, date_range } = req.body;
+
+    const [startDate, endDate] = date_range.map((d) =>
+      moment(d).startOf("day").toDate(),
+    );
+
+    // Fetch all schedules for given location within date range
+    const schedules = await Schedule.findAll({
+      where: {
+        start_date: { [Op.lte]: endDate },
+        end_date: { [Op.gte]: startDate },
+        is_deleted: false,
+      },
+      include: [
+        {
+          model: Event,
+          where: { location_id },
+          required: true,
+        },
+        {
+          model: Employee,
+          include: [
+            { model: User, attributes: ["first_name", "last_name", "id"] },
+          ],
+        },
+      ],
+    });
+
+    const weeklyData = {};
+
+    console.log(schedules.length, "===================");
+
+    schedules.forEach((schedule) => {
+      const start = moment.max(moment(schedule.start_date), moment(startDate));
+      const end = moment.min(moment(schedule.end_date), moment(endDate));
+      const dailyDuration = moment(schedule.end_time, "HH:mm:ss").diff(
+        moment(schedule.start_time, "HH:mm:ss"),
+        "hours",
+      );
+
+      const employeeName = `${schedule.Employee.User.first_name} ${schedule.Employee.User.last_name}`;
+
+      for (
+        let day = start.clone();
+        day.isSameOrBefore(end, "day");
+        day.add(1, "day")
+      ) {
+        const weekStart = day.clone().startOf("week").format("MMMM D, YYYY");
+        const weekEnd = day.clone().endOf("week").format("MMMM D, YYYY");
+        const weekKey = `${weekStart} - ${weekEnd}`;
+
+        if (!weeklyData[weekKey]) weeklyData[weekKey] = {};
+
+        if (!weeklyData[weekKey][employeeName])
+          weeklyData[weekKey][employeeName] = 0;
+
+        weeklyData[weekKey][employeeName] += dailyDuration;
+      }
+    });
+
+    // Format final output
+    const result = {};
+    Object.entries(weeklyData).forEach(([week, employeeMap]) => {
+      result[week] = Object.entries(employeeMap).map(
+        ([employee_name, total_hours]) => ({
+          employee_name,
+          total_hours,
+        }),
+      );
+    });
+
+    return res.json(result);
+  } catch (err) {
+    console.error("Error:", err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 

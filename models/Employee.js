@@ -58,6 +58,11 @@ const Employee = sequelize.define(
       allowNull: false,
       defaultValue: "A-List", // Default value if needed
     },
+    status: {
+      type: DataTypes.ENUM("active", "inactive", "inactive-deceased"),
+      allowNull: false,
+      defaultValue: "active",
+    },
   },
   {
     tableName: "employees",

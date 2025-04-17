@@ -27,5 +27,14 @@ router.post(
   "/employee-hours-week",
   employeeController.getEmployeeSchedulesWeek,
 );
+router.post(
+  "/employee-schedule-location-week",
+  employeeController.getEmployeeSchedulesLocationWeek,
+);
+
+router.post(
+  "/schedule-location-week",
+  employeeController.getLocationScheduleWeek,
+);
 
 module.exports = router;
