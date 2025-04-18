@@ -30,7 +30,13 @@ const createLocation = async (req, res) => {
 
 const getLocations = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      sortField = "id",
+      sortOrder = "ASC",
+    } = req.query;
     const offset = (page - 1) * limit;
 
     const whereClause = search
@@ -39,11 +45,17 @@ const getLocations = async (req, res) => {
         }
       : {};
 
+    // Allow only specific fields to sort by
+    const allowedSortFields = ["name", "city", "state", "id"];
+    const order = allowedSortFields.includes(sortField)
+      ? [[sortField, sortOrder.toUpperCase()]]
+      : [["id", "ASC"]]; // default if invalid sortField
+
     const locations = await Location.findAll({
       where: whereClause,
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["id", "ASC"]],
+      order,
     });
 
     const totalCount = await Location.count({ where: whereClause });

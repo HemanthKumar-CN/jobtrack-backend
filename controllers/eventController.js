@@ -55,7 +55,7 @@ const createEvent = async (req, res) => {
 // Get All Events
 const getAllEvents = async (req, res) => {
   try {
-    const { search } = req.query;
+    const { search, sortField, sortOrder } = req.query;
 
     let whereCondition = {};
     if (search) {
@@ -66,13 +66,37 @@ const getAllEvents = async (req, res) => {
       };
     }
 
+    // Build order array dynamically
+    let order = [["start_date", "ASC"]]; // default sort
+    if (sortField && sortOrder) {
+      switch (sortField) {
+        case "event_name":
+          order = [["event_name", sortOrder]];
+          break;
+        case "start_date":
+          order = [["start_date", sortOrder]];
+          break;
+        case "end_date":
+          order = [["end_date", sortOrder]];
+          break;
+        case "contractor":
+          order = [[Contractor, "company_name", sortOrder]];
+          break;
+        case "location":
+          order = [[Location, "name", sortOrder]];
+          break;
+        default:
+          order = [["start_date", "ASC"]];
+      }
+    }
+
     const events = await Event.findAll({
       where: whereCondition,
       include: [
         { model: Contractor, attributes: ["id", "company_name"] },
         { model: Location, attributes: ["id", "name"] },
       ],
-      order: [["start_date", "ASC"]],
+      order,
     });
 
     res.status(200).json(events);

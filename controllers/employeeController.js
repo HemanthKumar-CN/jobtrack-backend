@@ -20,6 +20,7 @@ exports.createEmployee = async (req, res) => {
       role_id, // User role
       address_1,
       address_2,
+      status,
       city,
       state,
       postal_code,
@@ -66,6 +67,7 @@ exports.createEmployee = async (req, res) => {
         user_id: newUser.id,
         address_1,
         address_2,
+        status,
         city,
         state,
         postal_code,
@@ -101,7 +103,14 @@ exports.createEmployee = async (req, res) => {
 
 exports.getAllEmployees = async (req, res) => {
   try {
-    const { search = "", page = 1, limit = 10, status } = req.query; // Default pagination values
+    const {
+      search = "",
+      page = 1,
+      limit = 10,
+      status,
+      sortField,
+      sortOrder,
+    } = req.query; // Default pagination values
     const offset = (page - 1) * limit;
 
     // Build query conditions for search
@@ -126,6 +135,25 @@ exports.getAllEmployees = async (req, res) => {
       ...(status && { status }), // <--- Add status to where clause if provided
     };
 
+    // Default sort
+    let order = [];
+
+    if (sortField && sortOrder) {
+      if (["first_name", "last_name"].includes(sortField)) {
+        // Sorting on User fields
+        order.push([
+          { model: User, as: "User" },
+          sortField,
+          sortOrder.toUpperCase(),
+        ]);
+      } else if (["city", "state", "type"].includes(sortField)) {
+        // Sorting on Employee fields
+        order.push([sortField, sortOrder.toUpperCase()]);
+      }
+    }
+
+    console.log(order, "=================== order =+++");
+
     // Fetch employees with pagination
     const { count, rows: employees } = await Employee.findAndCountAll({
       attributes: [
@@ -137,14 +165,17 @@ exports.getAllEmployees = async (req, res) => {
         "type",
         "status",
       ],
-      include: {
-        model: User,
-        attributes: ["id", "first_name", "last_name", "email"],
-        where: { deleted_at: null }, // Only include users who are NOT deleted
-      },
+      include: [
+        {
+          model: User,
+          attributes: ["id", "first_name", "last_name", "email"],
+          where: { deleted_at: null }, // Only include users who are NOT deleted
+        },
+      ],
       where: whereClause,
       limit: parseInt(limit),
       offset,
+      order,
     });
 
     res.status(200).json({

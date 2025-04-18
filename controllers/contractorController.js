@@ -4,8 +4,20 @@ const Contractor = require("../models/Contractor");
 // Get all contractors
 const getAllContractors = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const {
+      page = 1,
+      limit = 10,
+      search = "",
+      sortField = "id",
+      sortOrder = "ASC",
+    } = req.query;
     const offset = (page - 1) * limit;
+
+    // Build order dynamically
+    const allowedSortFields = ["company_name", "city", "state", "id"];
+    const order = allowedSortFields.includes(sortField)
+      ? [[sortField, sortOrder.toUpperCase()]]
+      : [["id", "ASC"]]; // default order
 
     const whereClause = search
       ? {
@@ -19,7 +31,7 @@ const getAllContractors = async (req, res) => {
       where: whereClause,
       limit: parseInt(limit),
       offset: parseInt(offset),
-      order: [["id", "ASC"]],
+      order,
     });
 
     const total = await Contractor.count({ where: whereClause });
