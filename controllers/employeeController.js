@@ -809,6 +809,9 @@ exports.getEmployeesList = async (req, res) => {
           attributes: ["id", "image_url", "first_name", "last_name"], // Get user data (image_url)
         },
       ],
+      where: {
+        status: "active",
+      },
       order: [["createdAt", "DESC"]], // Optional: Order by latest created
       attributes: ["id", "user_id", "type"], // Only get specific columns
     });
