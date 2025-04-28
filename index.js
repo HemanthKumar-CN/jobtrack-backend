@@ -10,24 +10,14 @@ const cors = require("cors"); // Import cors
 
 const app = express();
 
-// 🔥 First: setup CORS properly
-app.use(
-  cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"], // <-- Important
-    allowedHeaders: ["Content-Type", "Authorization"], // <-- Important
-  }),
-);
-
 // ✅ Use cookie-parser to parse cookies
 app.use(cookieParser());
-// app.use(
-//   cors({
-//     origin: process.env.CLIENT_URL || "http://localhost:5173", // ✅ Set your frontend URL
-//     credentials: true, // ✅ Allow credentials (cookies, authorization headers)
-//   }),
-// ); // Allow all origins (for development)
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || "http://localhost:5173", // ✅ Set your frontend URL
+    credentials: true, // ✅ Allow credentials (cookies, authorization headers)
+  }),
+); // Allow all origins (for development)
 
 app.use(bodyParser.json());
 app.use(express.urlencoded({ extended: true }));
