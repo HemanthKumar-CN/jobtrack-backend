@@ -420,6 +420,16 @@ const getSchedules = async (req, res) => {
             },
           ],
         },
+        {
+          model: Event,
+          attributes: ["id", "location_id"],
+          include: [
+            {
+              model: Location,
+              attributes: ["id", "colour_code", "name"],
+            },
+          ],
+        },
       ],
       order: [["start_time", "ASC"]], // Sort schedules by start time
     });
@@ -430,6 +440,9 @@ const getSchedules = async (req, res) => {
     const groupedSchedules = schedules.reduce((acc, schedule) => {
       const user = schedule.Employee.User;
       const userId = schedule.Employee.user_id;
+
+      const colour_code = schedule.Event?.Location?.colour_code || null;
+      const locationName = schedule.Event?.Location?.name || "";
 
       if (!acc[userId]) {
         acc[userId] = {
@@ -447,6 +460,8 @@ const getSchedules = async (req, res) => {
         start_time: schedule.start_time,
         end_time: schedule.end_time,
         status: schedule.status,
+        colour_code: colour_code,
+        locationName: locationName,
       });
 
       return acc;
@@ -500,6 +515,16 @@ const getWeeklySchedules = async (req, res) => {
             },
           ],
         },
+        {
+          model: Event,
+          attributes: ["id", "location_id"],
+          include: [
+            {
+              model: Location,
+              attributes: ["id", "colour_code", "name"],
+            },
+          ],
+        },
       ],
     });
 
@@ -509,6 +534,9 @@ const getWeeklySchedules = async (req, res) => {
     schedules.forEach((schedule) => {
       const user = schedule.Employee?.User;
       if (!user) return;
+
+      const colour_code = schedule.Event?.Location?.colour_code || null;
+      const locationName = schedule.Event?.Location?.name || "";
 
       if (!employeeSchedules[user.id]) {
         employeeSchedules[user.id] = {
@@ -528,6 +556,8 @@ const getWeeklySchedules = async (req, res) => {
         start_time: schedule.start_time,
         end_time: schedule.end_time,
         status: schedule.status,
+        colour_code: colour_code,
+        locationName: locationName,
         // days: getScheduleDays(schedule.start_date, schedule.end_date),
       });
     });
@@ -701,6 +731,7 @@ const employeeSchedules = async (req, res) => {
                 "state",
                 "postal_code",
                 "image_url",
+                "colour_code",
               ],
             },
           ],

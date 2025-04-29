@@ -33,6 +33,11 @@ const Location = sequelize.define(
       type: DataTypes.STRING,
       allowNull: true,
     },
+    colour_code: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      unique: true,
+    },
   },
   {
     tableName: "locations",

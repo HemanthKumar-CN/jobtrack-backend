@@ -6,11 +6,15 @@ const Event = require("../models/Events");
 const Employee = require("../models/Employee");
 const Contractor = require("../models/Contractor");
 const moment = require("moment");
+const generateRandomColor = require("../utils/generateRandomColor");
 
 const createLocation = async (req, res) => {
   try {
     const { name, address_1, address_2, city, state, postal_code } = req.body;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Store relative path
+
+    // Auto-generate a unique non-grey/black/white color code
+    const colour_code = generateRandomColor();
 
     const location = await Location.create({
       name,
@@ -20,6 +24,7 @@ const createLocation = async (req, res) => {
       state,
       postal_code,
       image_url,
+      colour_code,
     });
 
     res.status(201).json(location);
