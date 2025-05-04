@@ -627,7 +627,7 @@ const getMonthlySchedules = async (req, res) => {
           include: [
             {
               model: Location, // Include location details
-              attributes: ["id", "name"],
+              attributes: ["id", "name", "colour_code"],
             },
           ],
         },
@@ -663,6 +663,7 @@ const getMonthlySchedules = async (req, res) => {
         status: schedule.status,
         event_name: schedule.Event?.event_name || "N/A", // Get event_name, fallback to "N/A"
         location_name: schedule.Event?.Location?.name || "N/A", // Get location name, fallback to "N/A"
+        colour_code: schedule.Event?.Location?.colour_code,
       });
 
       return acc;
