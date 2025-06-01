@@ -3,12 +3,8 @@ const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const ExcelJS = require("exceljs");
-const Schedule = require("../models/Schedule");
-const Employee = require("../models/Employee");
-const Location = require("../models/Location");
+const { Schedule, Employee, Location, Event, User } = require("../models");
 const moment = require("moment");
-const Event = require("../models/Events");
-const User = require("../models/User");
 const sequelize = require("../config/database");
 
 // Create Schedule

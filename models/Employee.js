@@ -1,77 +1,128 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("../config/database");
-const User = require("./User");
+// const { DataTypes } = require("sequelize");
+// const sequelize = require("../config/database");
+// const User = require("./User");
 
-const Employee = sequelize.define(
-  "Employee",
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      allowNull: false,
-      primaryKey: true,
-    },
-    user_id: {
-      type: DataTypes.INTEGER,
-      allowNull: false,
-      references: {
-        model: "users",
-        key: "id",
+// const Employee = sequelize.define(
+//   "Employee",
+//   {
+//     id: {
+//       type: DataTypes.INTEGER,
+//       autoIncrement: true,
+//       allowNull: false,
+//       primaryKey: true,
+//     },
+//     user_id: {
+//       type: DataTypes.INTEGER,
+//       allowNull: false,
+//       references: {
+//         model: "users",
+//         key: "id",
+//       },
+//     },
+//     address_1: {
+//       type: DataTypes.STRING,
+//     },
+//     address_2: {
+//       type: DataTypes.STRING,
+//     },
+//     city: {
+//       type: DataTypes.STRING,
+//     },
+//     state: {
+//       type: DataTypes.STRING,
+//     },
+//     postal_code: {
+//       type: DataTypes.STRING,
+//     },
+//     phone: {
+//       type: DataTypes.STRING,
+//     },
+
+//     date_of_birth: {
+//       type: DataTypes.DATE,
+//     },
+//     hire_date: {
+//       type: DataTypes.DATE,
+//     },
+//     emergency_contact_name: {
+//       type: DataTypes.STRING,
+//     },
+//     emergency_contact_phone: {
+//       type: DataTypes.STRING,
+//     },
+//     notification_preference: {
+//       type: DataTypes.STRING,
+//     },
+//     type: {
+//       type: DataTypes.STRING,
+//       allowNull: false,
+//       defaultValue: "A-List", // Default value if needed
+//     },
+//     status: {
+//       type: DataTypes.ENUM("active", "inactive", "inactive-deceased"),
+//       allowNull: false,
+//       defaultValue: "active",
+//     },
+//   },
+//   {
+//     tableName: "employees",
+//     timestamps: true,
+//     underscored: true,
+//   },
+// );
+
+"use strict";
+
+module.exports = (sequelize, DataTypes) => {
+  const Employee = sequelize.define(
+    "Employee",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        allowNull: false,
+        primaryKey: true,
+      },
+      user_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        references: {
+          model: "users",
+          key: "id",
+        },
+      },
+      address_1: DataTypes.STRING,
+      address_2: DataTypes.STRING,
+      city: DataTypes.STRING,
+      state: DataTypes.STRING,
+      postal_code: DataTypes.STRING,
+      phone: DataTypes.STRING,
+      date_of_birth: DataTypes.DATE,
+      hire_date: DataTypes.DATE,
+      emergency_contact_name: DataTypes.STRING,
+      emergency_contact_phone: DataTypes.STRING,
+      notification_preference: DataTypes.STRING,
+      type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: "A-List",
+      },
+      status: {
+        type: DataTypes.ENUM("active", "inactive", "inactive-deceased"),
+        allowNull: false,
+        defaultValue: "active",
       },
     },
-    address_1: {
-      type: DataTypes.STRING,
+    {
+      tableName: "employees",
+      timestamps: true,
+      underscored: true,
     },
-    address_2: {
-      type: DataTypes.STRING,
-    },
-    city: {
-      type: DataTypes.STRING,
-    },
-    state: {
-      type: DataTypes.STRING,
-    },
-    postal_code: {
-      type: DataTypes.STRING,
-    },
-    phone: {
-      type: DataTypes.STRING,
-    },
+  );
 
-    date_of_birth: {
-      type: DataTypes.DATE,
-    },
-    hire_date: {
-      type: DataTypes.DATE,
-    },
-    emergency_contact_name: {
-      type: DataTypes.STRING,
-    },
-    emergency_contact_phone: {
-      type: DataTypes.STRING,
-    },
-    notification_preference: {
-      type: DataTypes.STRING,
-    },
-    type: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      defaultValue: "A-List", // Default value if needed
-    },
-    status: {
-      type: DataTypes.ENUM("active", "inactive", "inactive-deceased"),
-      allowNull: false,
-      defaultValue: "active",
-    },
-  },
-  {
-    tableName: "employees",
-    timestamps: true,
-    underscored: true,
-  },
-);
+  Employee.associate = (models) => {
+    Employee.belongsTo(models.User, { foreignKey: "user_id" });
+  };
 
-// Define the relationship
-Employee.belongsTo(User, { foreignKey: "user_id" });
-
-module.exports = Employee;
+  return Employee;
+};

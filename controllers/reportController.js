@@ -1,6 +1,4 @@
-const Employee = require("../models/Employee");
-const Location = require("../models/Location");
-const User = require("../models/User");
+const { Employee, Location, User } = require("../models");
 
 exports.getEmployeeAndLocations = async (req, res) => {
   try {

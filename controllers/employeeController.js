@@ -1,12 +1,9 @@
-const Employee = require("../models/Employee");
-const User = require("../models/User");
+const { Employee, User, Schedule, Event } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const sequelize = require("../config/database");
 const { Op } = require("sequelize");
-const Schedule = require("../models/Schedule");
 const moment = require("moment");
-const Event = require("../models/Events");
 const sendWelcomeEmail = require("../utils/mailer");
 
 exports.createEmployee = async (req, res) => {

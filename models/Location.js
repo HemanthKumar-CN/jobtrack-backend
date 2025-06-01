@@ -1,49 +1,47 @@
-const { DataTypes } = require("sequelize");
-const sequelize = require("../config/database");
+"use strict";
 
-const Location = sequelize.define(
-  "Location",
-  {
-    id: {
-      type: DataTypes.INTEGER,
-      autoIncrement: true,
-      allowNull: false,
-      primaryKey: true,
+module.exports = (sequelize, DataTypes) => {
+  const Location = sequelize.define(
+    "Location",
+    {
+      id: {
+        type: DataTypes.INTEGER,
+        autoIncrement: true,
+        allowNull: false,
+        primaryKey: true,
+      },
+      name: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
+      address_1: DataTypes.STRING,
+      address_2: DataTypes.STRING,
+      city: DataTypes.STRING,
+      state: DataTypes.STRING,
+      postal_code: DataTypes.STRING,
+      image_url: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      colour_code: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        unique: true,
+      },
     },
-    name: {
-      type: DataTypes.STRING,
-      allowNull: false,
+    {
+      tableName: "locations",
+      timestamps: true,
+      underscored: true,
     },
-    address_1: {
-      type: DataTypes.STRING,
-    },
-    address_2: {
-      type: DataTypes.STRING,
-    },
-    city: {
-      type: DataTypes.STRING,
-    },
-    state: {
-      type: DataTypes.STRING,
-    },
-    postal_code: {
-      type: DataTypes.STRING,
-    },
-    image_url: {
-      type: DataTypes.STRING,
-      allowNull: true,
-    },
-    colour_code: {
-      type: DataTypes.STRING,
-      allowNull: false,
-      unique: true,
-    },
-  },
-  {
-    tableName: "locations",
-    timestamps: true,
-    underscored: true,
-  },
-);
+  );
 
-module.exports = Location;
+  Location.associate = (models) => {
+    Location.hasMany(models.EventLocation, {
+      foreignKey: "location_id",
+      as: "eventLocations",
+    });
+  };
+
+  return Location;
+};

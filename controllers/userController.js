@@ -1,7 +1,6 @@
-const User = require("../models/User");
+const { User, Role } = require("../models");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-const Role = require("../models/Role");
 
 exports.getAllUsers = async (req, res) => {
   try {

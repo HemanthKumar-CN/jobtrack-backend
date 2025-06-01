@@ -1,5 +1,5 @@
 const { Op } = require("sequelize");
-const Contractor = require("../models/Contractor");
+const { Contractor } = require("../models");
 
 // Get all contractors
 const getAllContractors = async (req, res) => {
@@ -34,6 +34,8 @@ const getAllContractors = async (req, res) => {
       order,
     });
 
+    console.log(contractors, "?//////////////=---");
+
     const total = await Contractor.count({ where: whereClause });
 
     res.status(200).json({
@@ -42,6 +44,7 @@ const getAllContractors = async (req, res) => {
       currentPage: parseInt(page),
     });
   } catch (error) {
+    console.log(error, "}}}ERR");
     res.status(500).json({ error: "Server error" });
   }
 };

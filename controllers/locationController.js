@@ -1,10 +1,12 @@
 const path = require("path");
-const Location = require("../models/Location");
+const {
+  Location,
+  Schedule,
+  Event,
+  Employee,
+  Contractor,
+} = require("../models");
 const { Op, Sequelize } = require("sequelize");
-const Schedule = require("../models/Schedule");
-const Event = require("../models/Events");
-const Employee = require("../models/Employee");
-const Contractor = require("../models/Contractor");
 const moment = require("moment");
 const generateRandomColor = require("../utils/generateRandomColor");
 
