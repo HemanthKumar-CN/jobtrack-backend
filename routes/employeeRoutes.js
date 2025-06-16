@@ -18,6 +18,8 @@ router.post(
 );
 
 router.get("/list", employeeController.getEmployeesList); // Get List
+router.get("/classificationList", employeeController.getClassificationList); // Get Classification List
+router.get("/not-scheduled", employeeController.getNotScheduledEmployees); // Get Not Scheduled Employees
 router.get("/:id", employeeController.getEmployeeById); // Read One
 router.put("/:id", upload.single("image"), employeeController.updateEmployee); // Update
 router.delete("/:id", employeeController.softDeleteEmployee); // Soft Delete

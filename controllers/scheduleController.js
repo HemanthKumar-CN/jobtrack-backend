@@ -3,7 +3,17 @@ const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
 const ExcelJS = require("exceljs");
-const { Schedule, Employee, Location, Event, User } = require("../models");
+const {
+  Schedule,
+  Employee,
+  Location,
+  Event,
+  User,
+  Classification,
+  EventLocationContractor,
+  EventLocation,
+  Contractor,
+} = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
 
@@ -144,215 +154,215 @@ const createSchedule = async (req, res) => {
 
 // Get Schedules
 
-const createBulkSchedule = async (req, res) => {
-  try {
-    const {
-      startDate, // Example: "2025-03-16T03:45"
-      endDate, // Example: "2025-03-20T06:45"
-      taskEvent,
-      title,
-      description,
-      selectedEmployees,
-    } = req.body;
+// const createBulkSchedule = async (req, res) => {
+//   try {
+//     const {
+//       startDate, // Example: "2025-03-16T03:45"
+//       endDate, // Example: "2025-03-20T06:45"
+//       taskEvent,
+//       title,
+//       description,
+//       selectedEmployees,
+//     } = req.body;
 
-    if (
-      !startDate ||
-      !endDate ||
-      !taskEvent ||
-      !title ||
-      !selectedEmployees.length
-    ) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
+//     if (
+//       !startDate ||
+//       !endDate ||
+//       !taskEvent ||
+//       !title ||
+//       !selectedEmployees.length
+//     ) {
+//       return res.status(400).json({ error: "All fields are required" });
+//     }
 
-    console.log(startDate, endDate, "====**********");
+//     console.log(startDate, endDate, "====**********");
 
-    const employeeIds = selectedEmployees.map((emp) => emp.value);
+//     const employeeIds = selectedEmployees.map((emp) => emp.value);
 
-    // Convert input to UTC format for storage
-    // ✅ Step 1: Convert to UTC
-    const startDateUTC = moment(startDate).utc();
-    const endDateUTC = moment(endDate).utc();
+//     // Convert input to UTC format for storage
+//     // ✅ Step 1: Convert to UTC
+//     const startDateUTC = moment(startDate).utc();
+//     const endDateUTC = moment(endDate).utc();
 
-    // ✅ Step 2: Extract UTC date and time separately
-    const newStartDate = startDateUTC.format("YYYY-MM-DD"); // Extract only date
-    const newEndDate = endDateUTC.format("YYYY-MM-DD"); // Extract only date
-    const newStartTime = startDateUTC.format("HH:mm:ss"); // Extract only time
-    const newEndTime = endDateUTC.format("HH:mm:ss"); // Extract only time
+//     // ✅ Step 2: Extract UTC date and time separately
+//     const newStartDate = startDateUTC.format("YYYY-MM-DD"); // Extract only date
+//     const newEndDate = endDateUTC.format("YYYY-MM-DD"); // Extract only date
+//     const newStartTime = startDateUTC.format("HH:mm:ss"); // Extract only time
+//     const newEndTime = endDateUTC.format("HH:mm:ss"); // Extract only time
 
-    console.log(
-      startDateUTC,
-      endDateUTC,
-      newStartDate,
-      newEndDate,
-      newStartTime,
-      newEndTime,
-      "====**********",
-    );
+//     console.log(
+//       startDateUTC,
+//       endDateUTC,
+//       newStartDate,
+//       newEndDate,
+//       newStartTime,
+//       newEndTime,
+//       "====**********",
+//     );
 
-    // Fetch existing schedules that overlap
-    const existingSchedules = await Schedule.findAll({
-      where: {
-        employee_id: { [Op.in]: employeeIds },
-        start_date: { [Op.lte]: newEndDate },
-        end_date: { [Op.gte]: newStartDate },
-        [Op.and]: [
-          {
-            [Op.or]: [
-              // Overlapping date range
-              {
-                start_date: { [Op.lte]: newEndDate },
-                end_date: { [Op.gte]: newStartDate },
-              },
-            ],
-          },
-          {
-            [Op.or]: [
-              // Overlapping time range
-              {
-                start_time: { [Op.lt]: newEndTime },
-                end_time: { [Op.gt]: newStartTime },
-              },
-              {
-                start_time: null, // To allow full-day schedules if applicable
-                end_time: null,
-              },
-            ],
-          },
-        ],
-      },
-      include: [
-        {
-          model: Employee,
-          attributes: ["id", "user_id"],
-          include: [
-            {
-              model: User,
-              attributes: ["first_name", "last_name", "image_url"],
-            },
-          ],
-        },
-      ],
-    });
+//     // Fetch existing schedules that overlap
+//     const existingSchedules = await Schedule.findAll({
+//       where: {
+//         employee_id: { [Op.in]: employeeIds },
+//         start_date: { [Op.lte]: newEndDate },
+//         end_date: { [Op.gte]: newStartDate },
+//         [Op.and]: [
+//           {
+//             [Op.or]: [
+//               // Overlapping date range
+//               {
+//                 start_date: { [Op.lte]: newEndDate },
+//                 end_date: { [Op.gte]: newStartDate },
+//               },
+//             ],
+//           },
+//           {
+//             [Op.or]: [
+//               // Overlapping time range
+//               {
+//                 start_time: { [Op.lt]: newEndTime },
+//                 end_time: { [Op.gt]: newStartTime },
+//               },
+//               {
+//                 start_time: null, // To allow full-day schedules if applicable
+//                 end_time: null,
+//               },
+//             ],
+//           },
+//         ],
+//       },
+//       include: [
+//         {
+//           model: Employee,
+//           attributes: ["id", "user_id"],
+//           include: [
+//             {
+//               model: User,
+//               attributes: ["first_name", "last_name", "image_url"],
+//             },
+//           ],
+//         },
+//       ],
+//     });
 
-    console.log(
-      JSON.stringify(existingSchedules, null, 2),
-      "==== Existing Schedules",
-    );
+//     console.log(
+//       JSON.stringify(existingSchedules, null, 2),
+//       "==== Existing Schedules",
+//     );
 
-    // Extract conflicting employees
-    const occupiedEmployeeIds = existingSchedules.map(
-      (schedule) => schedule.employee_id,
-    );
-    const occupiedEmployees = existingSchedules.map((schedule) => ({
-      id: schedule.employee_id,
-      name: schedule.Employee?.User
-        ? `${schedule.Employee.User.first_name} ${schedule.Employee.User.last_name}`
-        : "Unknown Employee",
-    }));
+//     // Extract conflicting employees
+//     const occupiedEmployeeIds = existingSchedules.map(
+//       (schedule) => schedule.employee_id,
+//     );
+//     const occupiedEmployees = existingSchedules.map((schedule) => ({
+//       id: schedule.employee_id,
+//       name: schedule.Employee?.User
+//         ? `${schedule.Employee.User.first_name} ${schedule.Employee.User.last_name}`
+//         : "Unknown Employee",
+//     }));
 
-    // Filter out available employees
-    const availableEmployees = selectedEmployees.filter(
-      (emp) => !occupiedEmployeeIds.includes(emp.value),
-    );
+//     // Filter out available employees
+//     const availableEmployees = selectedEmployees.filter(
+//       (emp) => !occupiedEmployeeIds.includes(emp.value),
+//     );
 
-    console.log(newStartDate, newEndDate, newStartTime, newEndTime, "==== New");
+//     console.log(newStartDate, newEndDate, newStartTime, newEndTime, "==== New");
 
-    let employeesScheduled = [];
-    let locationData = null; // ✅ NEW: Store location details
+//     let employeesScheduled = [];
+//     let locationData = null; // ✅ NEW: Store location details
 
-    if (availableEmployees.length > 0) {
-      // Prepare and insert schedules for available employees
-      const schedules = availableEmployees.map((emp) => ({
-        employee_id: emp.value,
-        task_event_id: taskEvent,
-        title,
-        description,
-        start_date: newStartDate,
-        end_date: newEndDate,
-        start_time: newStartTime,
-        end_time: newEndTime,
-        status: "scheduled",
-      }));
+//     if (availableEmployees.length > 0) {
+//       // Prepare and insert schedules for available employees
+//       const schedules = availableEmployees.map((emp) => ({
+//         employee_id: emp.value,
+//         task_event_id: taskEvent,
+//         title,
+//         description,
+//         start_date: newStartDate,
+//         end_date: newEndDate,
+//         start_time: newStartTime,
+//         end_time: newEndTime,
+//         status: "scheduled",
+//       }));
 
-      // await Schedule.bulkCreate(schedules);
+//       // await Schedule.bulkCreate(schedules);
 
-      await Schedule.bulkCreate(schedules, {
-        returning: true,
-      });
+//       await Schedule.bulkCreate(schedules, {
+//         returning: true,
+//       });
 
-      console.log(availableEmployees, "==== Available Employees");
+//       console.log(availableEmployees, "==== Available Employees");
 
-      employeesScheduled = availableEmployees.map((emp) => ({
-        id: emp.value,
-        label: emp.label,
-        image_url: emp.imageUrl,
-      }));
-    }
+//       employeesScheduled = availableEmployees.map((emp) => ({
+//         id: emp.value,
+//         label: emp.label,
+//         image_url: emp.imageUrl,
+//       }));
+//     }
 
-    // ✅ NEW: Fetch event name from Events table
-    const eventDetails = await Event.findOne({
-      where: { id: taskEvent },
-      attributes: ["event_name", "location_id"],
-    });
+//     // ✅ NEW: Fetch event name from Events table
+//     const eventDetails = await Event.findOne({
+//       where: { id: taskEvent },
+//       attributes: ["event_name", "location_id"],
+//     });
 
-    // ✅ NEW: Fetch location details from Locations table using location_id
-    if (eventDetails && eventDetails.location_id) {
-      const locationDetails = await Location.findOne({
-        where: { id: eventDetails.location_id }, // ✅ Corrected: Now using location_id
-        attributes: [
-          "name",
-          "address_1",
-          "address_2",
-          "city",
-          "state",
-          "postal_code",
-        ],
-      });
+//     // ✅ NEW: Fetch location details from Locations table using location_id
+//     if (eventDetails && eventDetails.location_id) {
+//       const locationDetails = await Location.findOne({
+//         where: { id: eventDetails.location_id }, // ✅ Corrected: Now using location_id
+//         attributes: [
+//           "name",
+//           "address_1",
+//           "address_2",
+//           "city",
+//           "state",
+//           "postal_code",
+//         ],
+//       });
 
-      if (locationDetails) {
-        locationData = {
-          name: locationDetails.name,
-          address1: locationDetails.address_1,
-          address2: locationDetails.address_2,
-          city: locationDetails.city,
-          state: locationDetails.state,
-          postalCode: locationDetails.postal_code,
-        };
-      }
-    }
+//       if (locationDetails) {
+//         locationData = {
+//           name: locationDetails.name,
+//           address1: locationDetails.address_1,
+//           address2: locationDetails.address_2,
+//           city: locationDetails.city,
+//           state: locationDetails.state,
+//           postalCode: locationDetails.postal_code,
+//         };
+//       }
+//     }
 
-    return res.status(201).json({
-      message: availableEmployees.length
-        ? "Schedules created successfully for available employees."
-        : "No schedules were created as selected employees were occupied.",
-      occupiedEmployees,
-      scheduledData: availableEmployees.length
-        ? {
-            title,
-            description,
-            startDate: moment.utc(newStartDate).local().format("YYYY-MM-DD"),
-            endDate: moment.utc(newEndDate).local().format("YYYY-MM-DD"),
-            startTime: moment
-              .utc(newStartTime, "HH:mm:ss")
-              .local()
-              .format("hh:mm A"),
-            endTime: moment
-              .utc(newEndTime, "HH:mm:ss")
-              .local()
-              .format("hh:mm A"),
-            location: locationData, // ✅ NEW
-            eventName: eventDetails ? eventDetails.event_name : "Unknown Event", // ✅ NEW
+//     return res.status(201).json({
+//       message: availableEmployees.length
+//         ? "Schedules created successfully for available employees."
+//         : "No schedules were created as selected employees were occupied.",
+//       occupiedEmployees,
+//       scheduledData: availableEmployees.length
+//         ? {
+//             title,
+//             description,
+//             startDate: moment.utc(newStartDate).local().format("YYYY-MM-DD"),
+//             endDate: moment.utc(newEndDate).local().format("YYYY-MM-DD"),
+//             startTime: moment
+//               .utc(newStartTime, "HH:mm:ss")
+//               .local()
+//               .format("hh:mm A"),
+//             endTime: moment
+//               .utc(newEndTime, "HH:mm:ss")
+//               .local()
+//               .format("hh:mm A"),
+//             location: locationData, // ✅ NEW
+//             eventName: eventDetails ? eventDetails.event_name : "Unknown Event", // ✅ NEW
 
-            employees: employeesScheduled,
-          }
-        : null,
-    });
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ error: error.message });
-  }
-};
+//             employees: employeesScheduled,
+//           }
+//         : null,
+//     });
+//   } catch (error) {
+//     console.log(error);
+//     res.status(500).json({ error: error.message });
+//   }
+// };
 
 // const getSchedules = async (req, res) => {
 //   try {
@@ -394,79 +404,200 @@ const createBulkSchedule = async (req, res) => {
 
 // Update Schedule
 
+const createBulkSchedule = async (req, res) => {
+  try {
+    const scheduleData = req.body;
+
+    if (!scheduleData || typeof scheduleData !== "object") {
+      return res.status(400).json({ error: "Invalid payload structure" });
+    }
+
+    const scheduleEntries = [];
+
+    for (const [employeeId, details] of Object.entries(scheduleData)) {
+      const {
+        eventId,
+        locationContractorId,
+        classificationId,
+        startTime,
+        comments,
+      } = details;
+
+      if (!eventId || !startTime) {
+        return res.status(400).json({
+          error: `Missing required fields for employee ${employeeId}`,
+        });
+      }
+
+      scheduleEntries.push({
+        employee_id: parseInt(employeeId),
+        task_event_id: eventId,
+        event_location_contractor_id: locationContractorId || null,
+        classification_id: classificationId || null,
+        start_time: new Date(startTime), // UTC
+        comments: comments || null,
+        status: "pending",
+      });
+    }
+
+    await Schedule.bulkCreate(scheduleEntries, { returning: true });
+
+    return res.status(201).json({
+      message: "Bulk schedules created successfully",
+      count: scheduleEntries.length,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: err.message });
+  }
+};
+
+// const getSchedules = async (req, res) => {
+//   try {
+//     const { date } = req.params; // Date from request (YYYY-MM-DD)
+
+//     // Fetch schedules where the given date is within start_date and end_date range
+//     const schedules = await Schedule.findAll({
+//       where: {
+//         start_date: { [Op.lte]: date }, // start_date <= date
+//         end_date: { [Op.gte]: date }, // end_date >= date
+//         is_deleted: false,
+//       },
+//       include: [
+//         {
+//           model: Employee,
+//           attributes: ["id", "user_id"],
+//           include: [
+//             {
+//               model: User,
+//               attributes: ["first_name", "last_name"], // Get user details
+//             },
+//           ],
+//         },
+//         {
+//           model: Event,
+//           attributes: ["id", "location_id"],
+//           include: [
+//             {
+//               model: Location,
+//               attributes: ["id", "colour_code", "name"],
+//             },
+//           ],
+//         },
+//       ],
+//       order: [["start_time", "ASC"]], // Sort schedules by start time
+//     });
+
+//     // console.log(schedules, "==== Schedules");
+
+//     // Format response grouped by user
+//     const groupedSchedules = schedules.reduce((acc, schedule) => {
+//       const user = schedule.Employee.User;
+//       const userId = schedule.Employee.user_id;
+
+//       const colour_code = schedule.Event?.Location?.colour_code || null;
+//       const locationName = schedule.Event?.Location?.name || "";
+
+//       if (!acc[userId]) {
+//         acc[userId] = {
+//           user_id: userId,
+//           first_name: user.first_name,
+//           last_name: user.last_name,
+//           schedules: [],
+//         };
+//       }
+
+//       acc[userId].schedules.push({
+//         schedule_id: schedule.id,
+//         title: schedule.title,
+//         description: schedule.description,
+//         start_time: schedule.start_time,
+//         end_time: schedule.end_time,
+//         status: schedule.status,
+//         colour_code: colour_code,
+//         locationName: locationName,
+//       });
+
+//       return acc;
+//     }, {});
+
+//     res.status(200).json(Object.values(groupedSchedules));
+//   } catch (error) {
+//     console.error("Error fetching schedules:", error);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// };
+
 const getSchedules = async (req, res) => {
   try {
-    const { date } = req.params; // Date from request (YYYY-MM-DD)
-
-    // Fetch schedules where the given date is within start_date and end_date range
     const schedules = await Schedule.findAll({
       where: {
-        start_date: { [Op.lte]: date }, // start_date <= date
-        end_date: { [Op.gte]: date }, // end_date >= date
         is_deleted: false,
       },
       include: [
         {
           model: Employee,
-          attributes: ["id", "user_id"],
+          attributes: ["id", "restrictions"],
           include: [
             {
               model: User,
-              attributes: ["first_name", "last_name"], // Get user details
+              attributes: ["first_name", "last_name"],
             },
           ],
         },
         {
           model: Event,
-          attributes: ["id", "location_id"],
+          attributes: ["id", "event_name", "location_id"],
           include: [
             {
               model: Location,
-              attributes: ["id", "colour_code", "name"],
+              attributes: ["name"],
             },
           ],
         },
+        {
+          model: EventLocationContractor,
+          attributes: ["name", "company_name"],
+        },
+        {
+          model: Classification,
+          attributes: ["abbreviation", "description"],
+        },
       ],
-      order: [["start_time", "ASC"]], // Sort schedules by start time
+      order: [["start_time", "ASC"]],
     });
 
-    // console.log(schedules, "==== Schedules");
+    // Format flat response
+    const formatted = schedules.map((schedule) => {
+      const employee = schedule.Employee;
+      const user = employee?.User || {};
+      const event = schedule.Event || {};
+      const location = event.Location || {};
+      const contractor = schedule.EventLocationContractor || {};
+      const classification = schedule.Classification || {};
 
-    // Format response grouped by user
-    const groupedSchedules = schedules.reduce((acc, schedule) => {
-      const user = schedule.Employee.User;
-      const userId = schedule.Employee.user_id;
-
-      const colour_code = schedule.Event?.Location?.colour_code || null;
-      const locationName = schedule.Event?.Location?.name || "";
-
-      if (!acc[userId]) {
-        acc[userId] = {
-          user_id: userId,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          schedules: [],
-        };
-      }
-
-      acc[userId].schedules.push({
-        schedule_id: schedule.id,
-        title: schedule.title,
-        description: schedule.description,
-        start_time: schedule.start_time,
-        end_time: schedule.end_time,
+      return {
+        first_name: user.first_name || "N/A",
+        last_name: user.last_name || "N/A",
+        employee_id: employee.id,
         status: schedule.status,
-        colour_code: colour_code,
-        locationName: locationName,
-      });
+        employee_restrictions: employee.restrictions || null,
+        event: event.event_name || "N/A",
+        location_contractor: `${location.name || "N/A"} - ${
+          contractor.name || "N/A"
+        } (${contractor.company_name || "N/A"})`,
+        class: classification.abbreviation
+          ? `${classification.abbreviation} - ${classification.description}`
+          : null,
+        start_time: schedule.start_time,
+        comments: schedule.comments || "",
+      };
+    });
 
-      return acc;
-    }, {});
-
-    res.status(200).json(Object.values(groupedSchedules));
+    return res.status(200).json(formatted);
   } catch (error) {
     console.error("Error fetching schedules:", error);
-    res.status(500).json({ error: "Internal Server Error" });
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };
 
@@ -670,6 +801,69 @@ const getMonthlySchedules = async (req, res) => {
   } catch (error) {
     console.error("Error fetching monthly schedules:", error);
     res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const getClassList = async (req, res) => {
+  try {
+    const classList = await Classification.findAll({
+      attributes: ["id", "description", "abbreviation"],
+    });
+    res.status(200).json(classList);
+  } catch (error) {
+    console.error("Error fetching class list:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const eventList = async (req, res) => {
+  try {
+    const events = await Event.findAll({
+      attributes: ["id", "event_name"],
+      include: [
+        {
+          model: EventLocation,
+          include: [
+            {
+              model: Location,
+              attributes: ["id", "name"],
+            },
+            {
+              model: EventLocationContractor,
+              attributes: ["id"], // <-- important
+              include: [
+                {
+                  model: Contractor,
+                  attributes: ["id", "first_name", "last_name", "company_name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [["id", "ASC"]],
+    });
+
+    // Transform data for frontend select dropdowns
+    const formatted = events.map((event) => ({
+      id: event.id,
+      event_name: event.event_name,
+      locations: event.EventLocations.map((loc) => ({
+        id: loc.Location?.id,
+        name: loc.Location?.name,
+        contractors: loc.EventLocationContractors.map((elc) => ({
+          id: elc.Contractor?.id,
+          name: `${elc.Contractor?.first_name} ${elc.Contractor?.last_name}`,
+          company_name: elc.Contractor?.company_name,
+          event_location_contractor_id: elc.id, // <-- include this junction table id
+        })),
+      })),
+    }));
+
+    res.status(200).json(formatted);
+  } catch (err) {
+    console.error("Error fetching events:", err);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -1112,6 +1306,7 @@ module.exports = {
   createSchedule,
   createBulkSchedule,
   getSchedules,
+  eventList,
   getWeeklySchedules,
   getMonthlySchedules,
   employeeSchedules,
@@ -1123,4 +1318,5 @@ module.exports = {
   checkEmployeeAvailability,
   exportSchedulesByLocationCSV,
   exportExceeding40HoursReport,
+  getClassList,
 };

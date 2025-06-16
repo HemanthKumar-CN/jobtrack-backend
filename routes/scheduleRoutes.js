@@ -15,11 +15,15 @@ const {
   getWeeklySchedules,
   getMonthlySchedules,
   employeeSchedules,
+  getClassList,
+  eventList,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
-router.get("/:date", getSchedules);
+router.get("/allSchedules/:date", getSchedules);
+router.get("/eventList/event-location-contractors", eventList);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
+router.get("/classification/class-list", getClassList);
 router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
 router.get("/employee_schedule/:employee_id", employeeSchedules);

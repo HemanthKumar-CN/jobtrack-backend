@@ -122,6 +122,13 @@ module.exports = (sequelize, DataTypes) => {
 
   Employee.associate = (models) => {
     Employee.belongsTo(models.User, { foreignKey: "user_id" });
+
+    Employee.belongsToMany(models.Restriction, {
+      through: "employee_restrictions",
+      foreignKey: "employee_id",
+      otherKey: "restriction_id",
+      as: "restrictions", // ✅ ADD THIS
+    });
   };
 
   return Employee;

@@ -105,37 +105,37 @@ module.exports = (sequelize, DataTypes) => {
           key: "id",
         },
       },
-      title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
-      description: {
-        type: DataTypes.TEXT,
+
+      classification_id: {
+        type: DataTypes.INTEGER,
         allowNull: true,
+        references: {
+          model: "classifications",
+          key: "id",
+        },
       },
-      start_date: {
-        type: DataTypes.DATEONLY,
-        allowNull: false,
-      },
-      end_date: {
-        type: DataTypes.DATEONLY,
-        allowNull: false,
+      event_location_contractor_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "event_location_contractors",
+          key: "id",
+        },
       },
 
       start_time: {
-        type: DataTypes.TIME,
-        allowNull: false,
-      },
-
-      end_time: {
-        type: DataTypes.TIME,
+        type: DataTypes.DATE,
         allowNull: false,
       },
 
       status: {
-        type: DataTypes.ENUM("scheduled", "completed", "cancelled"),
+        type: DataTypes.ENUM("pending", "confirmed", "declined"),
         allowNull: false,
-        defaultValue: "scheduled",
+        defaultValue: "pending",
+      },
+      comments: {
+        type: DataTypes.TEXT,
+        allowNull: true,
       },
       is_deleted: {
         type: DataTypes.BOOLEAN,
@@ -153,6 +153,12 @@ module.exports = (sequelize, DataTypes) => {
   Schedule.associate = (models) => {
     Schedule.belongsTo(models.Employee, { foreignKey: "employee_id" });
     Schedule.belongsTo(models.Event, { foreignKey: "task_event_id" });
+    Schedule.belongsTo(models.Classification, {
+      foreignKey: "classification_id",
+    });
+    Schedule.belongsTo(models.EventLocationContractor, {
+      foreignKey: "event_location_contractor_id",
+    });
   };
 
   return Schedule;

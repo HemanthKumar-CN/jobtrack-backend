@@ -1,4 +1,4 @@
-const { Employee, User, Schedule, Event } = require("../models");
+const { Employee, User, Schedule, Event, Restriction } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const sequelize = require("../config/database");
@@ -95,6 +95,33 @@ exports.createEmployee = async (req, res) => {
     console.error("Error creating employee:", error);
     await transaction.rollback(); // ❌ Rollback on error
     res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+exports.getClassificationList = async (req, res) => {};
+
+exports.getNotScheduledEmployees = async (req, res) => {
+  try {
+    const employees = await Employee.findAll({
+      attributes: ["id", "user_id", "phone"],
+      include: [
+        {
+          model: User,
+          attributes: ["first_name", "last_name"],
+        },
+        {
+          model: Restriction,
+          as: "restrictions", // ✅ MUST MATCH EMPLOYEE ASSOCIATION
+          attributes: ["id", "description"],
+          through: { attributes: [] }, // hides junction table
+        },
+      ],
+    });
+
+    res.status(200).json({ success: true, data: employees });
+  } catch (error) {
+    console.error("Error fetching employees with restrictions:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };
 
