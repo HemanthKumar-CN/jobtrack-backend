@@ -17,11 +17,14 @@ const {
   employeeSchedules,
   getClassList,
   eventList,
+  getLatestConfirmedAssignments,
+  getScheduleByToken,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
 router.get("/allSchedules/:date", getSchedules);
 router.get("/eventList/event-location-contractors", eventList);
+router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
 router.get("/classification/class-list", getClassList);
 router.get("/", getWeeklySchedules);

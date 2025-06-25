@@ -1,4 +1,4 @@
-const { Op, Sequelize, fn, col, literal } = require("sequelize");
+const { Op, Sequelize, fn, col, literal, where } = require("sequelize");
 const { Parser } = require("json2csv");
 const fs = require("fs");
 const path = require("path");
@@ -16,6 +16,13 @@ const {
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
+const crypto = require("crypto");
+
+const twilio = require("twilio");
+const client = new twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN,
+);
 
 // Create Schedule
 const createSchedule = async (req, res) => {
@@ -429,6 +436,10 @@ const createBulkSchedule = async (req, res) => {
         });
       }
 
+      const responseToken = crypto.randomBytes(16).toString("hex");
+
+      console.log(responseToken, "????>>>>>>>>>>>=====");
+
       scheduleEntries.push({
         employee_id: parseInt(employeeId),
         task_event_id: eventId,
@@ -437,8 +448,28 @@ const createBulkSchedule = async (req, res) => {
         start_time: new Date(startTime), // UTC
         comments: comments || null,
         status: "pending",
+        response_token: responseToken,
+        responded_at: null,
+      });
+
+      const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
+      const messageBody = `Hi! You're scheduled on ${new Date(
+        startTime,
+      ).toLocaleString()}. Confirm 👉 ${scheduleLink}`;
+
+      // **Send SMS to Employee**
+      const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+
+      console.log("/////===============", scheduleLink);
+
+      await client.messages.create({
+        body: messageBody,
+        from: "+17087345990",
+        to: employeePhone,
       });
     }
+
+    console.log(scheduleEntries, "==== Schedule Entries");
 
     await Schedule.bulkCreate(scheduleEntries, { returning: true });
 
@@ -530,65 +561,123 @@ const createBulkSchedule = async (req, res) => {
 
 const getSchedules = async (req, res) => {
   try {
+    const { status, task_event_id, location_id, search } = req.query;
+    const date = req.params.date;
+
+    const whereClause = {
+      is_deleted: false,
+      [Op.and]: [
+        // Filter by date (compare only YYYY-MM-DD part of start_time)
+        where(fn("DATE", col("Schedule.start_time")), date),
+      ],
+    };
+
+    if (status && ["pending", "confirmed", "declined"].includes(status)) {
+      whereClause.status = status;
+    }
+
+    if (task_event_id) {
+      whereClause.task_event_id = task_event_id;
+    }
+
+    if (location_id) {
+      whereClause["$EventLocationContractor.EventLocation.location_id$"] =
+        location_id;
+    }
+
+    // If search text present, filter by employee first_name or last_name
+    const userWhereClause = {};
+    if (search) {
+      userWhereClause[Op.or] = [
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    console.log(whereClause, "??--======???", userWhereClause);
+
     const schedules = await Schedule.findAll({
-      where: {
-        is_deleted: false,
-      },
+      where: whereClause,
       include: [
         {
           model: Employee,
-          attributes: ["id", "restrictions"],
+          attributes: ["id", "phone"],
+          required: !!search, // 👈 Enforce INNER JOIN only if search is active
           include: [
             {
               model: User,
               attributes: ["first_name", "last_name"],
+              ...(search && { where: userWhereClause, required: true }), // 👈 Add filter + INNER JOIN
+            },
+            {
+              association: "restrictions",
+              through: { attributes: [] },
             },
           ],
         },
         {
           model: Event,
-          attributes: ["id", "event_name", "location_id"],
+          attributes: ["id", "event_name"],
           include: [
             {
-              model: Location,
-              attributes: ["name"],
+              model: EventLocation,
+              include: [{ model: Location, attributes: ["name"] }],
             },
           ],
         },
         {
           model: EventLocationContractor,
-          attributes: ["name", "company_name"],
+          include: [
+            {
+              model: Contractor,
+              attributes: ["first_name", "last_name", "company_name"],
+            },
+            {
+              model: EventLocation,
+              attributes: ["id", "location_id"],
+              include: [
+                {
+                  model: Location,
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
         },
         {
           model: Classification,
-          attributes: ["abbreviation", "description"],
+          attributes: ["abbreviation", "description", "id"],
         },
       ],
       order: [["start_time", "ASC"]],
     });
 
-    // Format flat response
     const formatted = schedules.map((schedule) => {
-      const employee = schedule.Employee;
-      const user = employee?.User || {};
+      const employee = schedule.Employee || {};
+      const user = employee.User || {};
+      const restriction = employee.restrictions || null;
       const event = schedule.Event || {};
-      const location = event.Location || {};
       const contractor = schedule.EventLocationContractor || {};
       const classification = schedule.Classification || {};
+      const EventLocationContractor = contractor;
 
       return {
+        id: schedule.id,
         first_name: user.first_name || "N/A",
         last_name: user.last_name || "N/A",
-        employee_id: employee.id,
-        status: schedule.status,
-        employee_restrictions: employee.restrictions || null,
-        event: event.event_name || "N/A",
-        location_contractor: `${location.name || "N/A"} - ${
-          contractor.name || "N/A"
-        } (${contractor.company_name || "N/A"})`,
-        class: classification.abbreviation
-          ? `${classification.abbreviation} - ${classification.description}`
-          : null,
+        employee_id: employee.id || "N/A",
+        phone: employee.phone || "N/A",
+        status: schedule.status || "N/A",
+        employee_restrictions: restriction,
+        event: {
+          event_id: event.id,
+          eventName: event.event_name,
+        },
+        location_contractor: {
+          id: EventLocationContractor.id,
+          name: `${EventLocationContractor?.EventLocation?.Location?.name} - ${EventLocationContractor?.Contractor?.first_name} ${EventLocationContractor?.Contractor?.last_name}`,
+        },
+        class: classification,
         start_time: schedule.start_time,
         comments: schedule.comments || "",
       };
@@ -598,6 +687,65 @@ const getSchedules = async (req, res) => {
   } catch (error) {
     console.error("Error fetching schedules:", error);
     return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+const getLatestConfirmedAssignments = async (req, res) => {
+  try {
+    const { employeeIds } = req.body;
+
+    const assignments = await Schedule.findAll({
+      where: {
+        employee_id: { [Op.in]: employeeIds },
+        status: "confirmed",
+      },
+      include: [
+        { model: Event, attributes: ["event_name"] },
+        {
+          model: EventLocationContractor,
+          include: [
+            {
+              model: Contractor,
+              attributes: ["first_name", "last_name", "company_name"],
+            },
+            {
+              model: EventLocation,
+              include: [{ model: Location, attributes: ["name"] }],
+            },
+          ],
+        },
+      ],
+      order: [["start_time", "DESC"]],
+    });
+
+    // Group by employee_id and return only latest per employee
+    const grouped = {};
+
+    // Initialize all requested employeeIds with null
+    for (const id of employeeIds) {
+      grouped[id] = null;
+    }
+
+    for (const assignment of assignments) {
+      if (!grouped[assignment.employee_id]) {
+        const contractor = assignment.EventLocationContractor?.Contractor;
+        const location =
+          assignment.EventLocationContractor?.EventLocation?.Location;
+
+        grouped[assignment.employee_id] = {
+          event_name: assignment.Event?.event_name,
+          location: location?.name || "N/A",
+          contractor:
+            contractor?.first_name || contractor?.company_name || "N/A",
+          start_time: assignment.start_time,
+        };
+      }
+    }
+
+    return res.status(200).json(grouped);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: "Failed to fetch assignments" });
   }
 };
 
@@ -946,23 +1094,27 @@ const employeeSchedules = async (req, res) => {
 const updateSchedule = async (req, res) => {
   try {
     const { id } = req.params;
-    const { shift_date, start_time, end_time, status } = req.body;
+    const updateData = req.body;
 
-    const schedule = await Schedule.findOne({
-      where: { id, is_deleted: false },
+    console.log("🔄 Incoming update for Schedule ID:", id);
+    console.log("📝 Payload:", updateData);
+
+    // Check if schedule exists
+    const schedule = await Schedule.findByPk(id);
+    if (!schedule) {
+      return res.status(404).json({ message: "Schedule not found" });
+    }
+
+    // Update only fields provided in request body
+    await schedule.update(updateData);
+
+    return res.status(200).json({
+      message: "Schedule updated successfully",
+      data: schedule,
     });
-    if (!schedule)
-      return res.status(404).json({ error: "Schedule not found or deleted" });
-
-    schedule.shift_date = shift_date;
-    schedule.start_time = start_time;
-    schedule.end_time = end_time;
-    schedule.status = status;
-
-    await schedule.save();
-    res.status(200).json(schedule);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error("❌ Error updating schedule:", error);
+    return res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
@@ -1319,4 +1471,5 @@ module.exports = {
   exportSchedulesByLocationCSV,
   exportExceeding40HoursReport,
   getClassList,
+  getLatestConfirmedAssignments,
 };

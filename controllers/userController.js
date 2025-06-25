@@ -1,7 +1,16 @@
 const { User, Role } = require("../models");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
-
+const {
+  Schedule,
+  Employee,
+  Location,
+  Event,
+  Classification,
+  EventLocationContractor,
+  EventLocation,
+  Contractor,
+} = require("../models");
 exports.getAllUsers = async (req, res) => {
   try {
     const users = await User.findAll();
@@ -130,5 +139,93 @@ exports.updateUser = async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error in user update" });
+  }
+};
+
+exports.getScheduleByToken = async (req, res) => {
+  try {
+    const { response_token } = req.params;
+
+    const schedule = await Schedule.findOne({
+      where: {
+        response_token,
+        is_deleted: false,
+      },
+      include: [
+        {
+          model: Event,
+          attributes: ["event_name"],
+        },
+        {
+          model: EventLocationContractor,
+          include: [
+            {
+              model: Contractor,
+              attributes: ["first_name", "last_name", "company_name"],
+            },
+            {
+              model: EventLocation,
+              include: [
+                {
+                  model: Location,
+                  attributes: ["name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    const eventName = schedule?.Event?.event_name || "N/A";
+    const startTime = schedule?.start_time || null;
+    const locationName =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.name || "N/A";
+    const contractor = schedule?.EventLocationContractor?.Contractor || {};
+    const contractorName = `${contractor.first_name || ""} ${
+      contractor.last_name || ""
+    }`.trim();
+
+    return res.status(200).json({
+      event_name: eventName,
+      start_time: startTime,
+      location: locationName,
+      contractor: contractorName || contractor.company_name || "N/A",
+      status: schedule.status,
+      comment: schedule.comments,
+    });
+  } catch (error) {
+    console.error("Error fetching schedule by token:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+};
+
+exports.scheduleRespond = async (req, res) => {
+  try {
+    const { response_token, status } = req.body;
+
+    if (!response_token || !["confirmed", "declined"].includes(status)) {
+      return res.status(400).json({ error: "Invalid input" });
+    }
+
+    const schedule = await Schedule.findOne({ where: { response_token } });
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    schedule.status = status;
+    await schedule.save();
+
+    return res
+      .status(200)
+      .json({ message: "Response updated", status: schedule.status });
+  } catch (err) {
+    console.error("Error updating schedule response:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
 };

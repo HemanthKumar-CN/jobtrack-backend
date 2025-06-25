@@ -142,6 +142,15 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: false,
       },
+      responded_at: {
+        type: DataTypes.DATE,
+        allowNull: true,
+      },
+      response_token: {
+        type: DataTypes.STRING,
+        allowNull: true,
+        unique: true,
+      },
     },
     {
       tableName: "schedules",
