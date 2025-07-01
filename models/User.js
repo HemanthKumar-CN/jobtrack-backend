@@ -106,6 +106,8 @@ module.exports = (sequelize, DataTypes) => {
       tableName: "users",
       timestamps: true,
       underscored: true,
+      paranoid: true, // ✅ enable soft delete
+      deletedAt: "deleted_at", // ✅ match your column name
     },
   );
 

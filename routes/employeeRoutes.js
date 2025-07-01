@@ -5,6 +5,7 @@ const upload = require("../config/multerConfig");
 
 router.post("/", upload.single("image"), employeeController.createEmployee); // Create
 router.get("/", employeeController.getAllEmployees); // Read All
+router.get("/get-restrictions", employeeController.getAllRestrictions);
 router.get("/me", employeeController.getEmployeeAbout); // Read All
 router.get("/profile", employeeController.getEmployeeProfile);
 router.put(

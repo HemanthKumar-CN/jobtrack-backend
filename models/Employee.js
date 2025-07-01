@@ -97,6 +97,11 @@ module.exports = (sequelize, DataTypes) => {
       state: DataTypes.STRING,
       postal_code: DataTypes.STRING,
       phone: DataTypes.STRING,
+      mobile_phone: DataTypes.STRING,
+      ssn: DataTypes.STRING,
+      snf: DataTypes.STRING,
+      number_id: DataTypes.STRING,
+      comments: DataTypes.TEXT,
       date_of_birth: DataTypes.DATE,
       hire_date: DataTypes.DATE,
       emergency_contact_name: DataTypes.STRING,
@@ -128,6 +133,16 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "employee_id",
       otherKey: "restriction_id",
       as: "restrictions", // ✅ ADD THIS
+    });
+
+    Employee.hasMany(models.RecurringBlockedTime, {
+      foreignKey: "employee_id",
+      as: "recurringBlockedTimes",
+    });
+
+    Employee.hasMany(models.TimeOff, {
+      foreignKey: "employee_id",
+      as: "timeOffs",
     });
   };
 

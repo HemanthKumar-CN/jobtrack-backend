@@ -1,4 +1,12 @@
-const { Employee, User, Schedule, Event, Restriction } = require("../models");
+const {
+  Employee,
+  User,
+  Schedule,
+  Event,
+  Restriction,
+  TimeOff,
+  RecurringBlockedTime,
+} = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const sequelize = require("../config/database");
@@ -6,101 +14,298 @@ const { Op } = require("sequelize");
 const moment = require("moment");
 const sendWelcomeEmail = require("../utils/mailer");
 
+// exports.createEmployee = async (req, res) => {
+//   const transaction = await sequelize.transaction(); // Start transaction
+
+//   try {
+//     const {
+//       first_name,
+//       last_name,
+//       email,
+//       role_id, // User role
+//       address_1,
+//       address_2,
+//       status,
+//       city,
+//       state,
+//       postal_code,
+//       phone,
+//       type,
+//       date_of_birth,
+//       hire_date,
+//       emergency_contact_name,
+//       emergency_contact_phone,
+//     } = req.body;
+
+//     const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Store relative path
+
+//     console.log(req.body, "=========", image_url);
+
+//     // ✅ Check if email already exists
+//     const existingUser = await User.findOne({ where: { email }, transaction });
+//     if (existingUser) {
+//       await transaction.rollback(); // Rollback if user exists
+//       return res.status(400).json({ message: "Email already in use" });
+//     }
+
+//     // ✅ Generate a secure temporary password
+//     const tempPassword = crypto.randomBytes(6).toString("hex"); // Example: "a3f8e1b2c4d5"
+//     const hashedPassword = await bcrypt.hash(tempPassword, 10); // Hash password
+
+//     console.log(image_url, "-===========");
+//     // ✅ Create User First
+//     const newUser = await User.create(
+//       {
+//         first_name,
+//         last_name,
+//         email,
+//         password: hashedPassword, // Store hashed password
+//         role_id,
+//         image_url,
+//       },
+//       { transaction },
+//     );
+
+//     // ✅ Create Employee and link with the newly created User
+//     const newEmployee = await Employee.create(
+//       {
+//         user_id: newUser.id,
+//         address_1,
+//         address_2,
+//         status,
+//         city,
+//         state,
+//         postal_code,
+//         phone,
+//         type,
+//         date_of_birth,
+//         hire_date,
+//         emergency_contact_name,
+//         emergency_contact_phone,
+//       },
+//       { transaction },
+//     );
+
+//     // ✅ Commit transaction if everything is successful
+//     await transaction.commit();
+
+//     await sendWelcomeEmail(email, first_name, tempPassword);
+
+//     // TODO: Send this temp password via email to the user (implement email service)
+
+//     res.status(201).json({
+//       message: "Employee created successfully",
+//       employee: newEmployee,
+//       user: newUser,
+//       tempPassword, // Remove this in production
+//     });
+//   } catch (error) {
+//     console.error("Error creating employee:", error);
+//     await transaction.rollback(); // ❌ Rollback on error
+//     res.status(500).json({ message: "Internal Server Error" });
+//   }
+// };
+
 exports.createEmployee = async (req, res) => {
-  const transaction = await sequelize.transaction(); // Start transaction
+  const transaction = await Employee.sequelize.transaction();
 
   try {
     const {
-      first_name,
-      last_name,
-      email,
-      role_id, // User role
-      address_1,
-      address_2,
-      status,
+      firstName,
+      lastName,
+      address1,
+      address2,
       city,
       state,
-      postal_code,
-      phone,
+      zip,
+      homePhone,
+      mobilePhone,
+      SSN,
+      comments,
+      SN,
+      numberId,
+      email,
+      birthdate,
+      status,
       type,
-      date_of_birth,
-      hire_date,
-      emergency_contact_name,
-      emergency_contact_phone,
     } = req.body;
 
-    const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Store relative path
+    // Parse FormData stringified JSON fields
+    let selectedRestrictions = [];
+    let recurringTimes = [];
+    let timeOffs = [];
 
-    console.log(req.body, "=========", image_url);
+    try {
+      if (req.body.selectedRestrictions) {
+        selectedRestrictions = JSON.parse(req.body.selectedRestrictions);
+      }
+      if (req.body.recurringTimes) {
+        recurringTimes = JSON.parse(req.body.recurringTimes);
+      }
+      if (req.body.timeOffs) {
+        timeOffs = JSON.parse(req.body.timeOffs);
+      }
+    } catch (parseErr) {
+      await transaction.rollback();
+      return res
+        .status(400)
+        .json({ message: "Invalid JSON fields in request" });
+    }
 
-    // ✅ Check if email already exists
+    const image_url = req.file ? `/uploads/${req.file.filename}` : null;
+
     const existingUser = await User.findOne({ where: { email }, transaction });
     if (existingUser) {
-      await transaction.rollback(); // Rollback if user exists
+      await transaction.rollback();
       return res.status(400).json({ message: "Email already in use" });
     }
 
-    // ✅ Generate a secure temporary password
-    const tempPassword = crypto.randomBytes(6).toString("hex"); // Example: "a3f8e1b2c4d5"
-    const hashedPassword = await bcrypt.hash(tempPassword, 10); // Hash password
+    const tempPassword = crypto.randomBytes(6).toString("hex");
+    const hashedPassword = await bcrypt.hash(tempPassword, 10);
 
-    console.log(image_url, "-===========");
-    // ✅ Create User First
     const newUser = await User.create(
       {
-        first_name,
-        last_name,
+        first_name: firstName,
+        last_name: lastName,
         email,
-        password: hashedPassword, // Store hashed password
-        role_id,
+        password: hashedPassword,
+        role_id: 3, // Fixed role for employee
         image_url,
       },
       { transaction },
     );
 
-    // ✅ Create Employee and link with the newly created User
     const newEmployee = await Employee.create(
       {
         user_id: newUser.id,
-        address_1,
-        address_2,
-        status,
+        address_1: address1,
+        address_2: address2,
         city,
         state,
-        postal_code,
-        phone,
-        type,
-        date_of_birth,
-        hire_date,
-        emergency_contact_name,
-        emergency_contact_phone,
+        postal_code: zip,
+        phone: homePhone,
+        date_of_birth: birthdate,
+        mobile_phone: mobilePhone,
+        ssn: SSN,
+        snf: SN,
+        number_id: numberId,
+        comments: comments,
+        type: type || "A-List",
+        status: status || "active",
       },
       { transaction },
     );
 
-    // ✅ Commit transaction if everything is successful
+    // Store employee_restrictions
+    if (
+      Array.isArray(selectedRestrictions) &&
+      selectedRestrictions.length > 0
+    ) {
+      const restrictionIds = selectedRestrictions.map((r) => r.id);
+      await newEmployee.setRestrictions(restrictionIds, { transaction });
+    }
+
+    // Store recurring blocked times
+    for (const block of recurringTimes) {
+      const { days, startDate, endDate, startTime, endTime } = block;
+
+      for (const day of days) {
+        await RecurringBlockedTime.create(
+          {
+            employee_id: newEmployee.id,
+            day_of_week: day,
+            start_date: startDate,
+            end_date: endDate,
+            start_time: new Date(startTime).toTimeString().slice(0, 5),
+            end_time: new Date(endTime).toTimeString().slice(0, 5),
+          },
+          { transaction },
+        );
+      }
+    }
+
+    // Store time offs
+    for (const timeOff of timeOffs) {
+      await TimeOff.create(
+        {
+          employee_id: newEmployee.id,
+          name: timeOff.name,
+          start_date: timeOff.startDate,
+          end_date: timeOff.endDate,
+          start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),
+          end_time: new Date(timeOff.endTime).toTimeString().slice(0, 5),
+        },
+        { transaction },
+      );
+    }
+
     await transaction.commit();
-
-    await sendWelcomeEmail(email, first_name, tempPassword);
-
-    // TODO: Send this temp password via email to the user (implement email service)
+    await sendWelcomeEmail(email, firstName, tempPassword);
 
     res.status(201).json({
       message: "Employee created successfully",
       employee: newEmployee,
       user: newUser,
-      tempPassword, // Remove this in production
+      tempPassword, // ⛔️ Remove this in production
     });
   } catch (error) {
     console.error("Error creating employee:", error);
-    await transaction.rollback(); // ❌ Rollback on error
+    await transaction.rollback();
     res.status(500).json({ message: "Internal Server Error" });
   }
 };
 
 exports.getClassificationList = async (req, res) => {};
 
+exports.getAllRestrictions = async (req, res) => {
+  try {
+    const restrictions = await Restriction.findAll({
+      order: [["description", "ASC"]],
+    });
+
+    console.log(restrictions, "????????????????//////////");
+    res.status(200).json(restrictions);
+  } catch (error) {
+    console.error("Error fetching restrictions:", error);
+    res.status(500).json({ message: "Failed to fetch restrictions" });
+  }
+};
+
+// exports.getNotScheduledEmployees = async (req, res) => {
+//   try {
+//     const employees = await Employee.findAll({
+//       attributes: ["id", "user_id", "phone"],
+//       include: [
+//         {
+//           model: User,
+//           attributes: ["first_name", "last_name"],
+//           required: true,
+//         },
+//         {
+//           model: Restriction,
+//           as: "restrictions", // ✅ MUST MATCH EMPLOYEE ASSOCIATION
+//           attributes: ["id", "description"],
+//           through: { attributes: [] }, // hides junction table
+//         },
+//       ],
+//     });
+
+//     res.status(200).json({ success: true, data: employees });
+//   } catch (error) {
+//     console.error("Error fetching employees with restrictions:", error);
+//     res.status(500).json({ success: false, message: "Server error" });
+//   }
+// };
+
 exports.getNotScheduledEmployees = async (req, res) => {
+  const { date } = req.query;
+
+  if (!moment(date, "YYYY-MM-DD", true).isValid()) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Invalid date format" });
+  }
+
   try {
     const employees = await Employee.findAll({
       attributes: ["id", "user_id", "phone"],
@@ -108,19 +313,81 @@ exports.getNotScheduledEmployees = async (req, res) => {
         {
           model: User,
           attributes: ["first_name", "last_name"],
+          required: true,
+          where: {
+            deleted_at: null, // ✅ avoid soft-deleted users
+          },
         },
         {
           model: Restriction,
-          as: "restrictions", // ✅ MUST MATCH EMPLOYEE ASSOCIATION
+          as: "restrictions",
           attributes: ["id", "description"],
-          through: { attributes: [] }, // hides junction table
+          through: { attributes: [] },
+        },
+        {
+          model: RecurringBlockedTime,
+          as: "recurringBlockedTimes",
+          attributes: ["start_date", "end_date", "day_of_week"],
+        },
+        {
+          model: TimeOff,
+          as: "timeOffs",
+          attributes: ["start_date", "end_date"],
         },
       ],
     });
 
-    res.status(200).json({ success: true, data: employees });
+    const inputDate = moment(date, "YYYY-MM-DD");
+    const dayLetterMap = {
+      0: "Su",
+      1: "M",
+      2: "T",
+      3: "W",
+      4: "Th",
+      5: "F",
+      6: "Sa",
+    };
+    const dayLetter = dayLetterMap[inputDate.day()];
+
+    const result = employees.map((emp) => {
+      let capacity = "Available";
+
+      const isUnavailable = emp.timeOffs.some((t) => {
+        return (
+          moment(t.start_date).isSameOrBefore(inputDate, "day") &&
+          moment(t.end_date).isSameOrAfter(inputDate, "day")
+        );
+      });
+
+      if (isUnavailable) {
+        capacity = "Unavailable";
+      } else {
+        const isLimited = emp.recurringBlockedTimes.some((b) => {
+          return (
+            b.day_of_week === dayLetter &&
+            moment(b.start_date).isSameOrBefore(inputDate, "day") &&
+            moment(b.end_date).isSameOrAfter(inputDate, "day")
+          );
+        });
+
+        if (isLimited) {
+          capacity = "Limited";
+        }
+      }
+
+      return {
+        id: emp.id,
+        user_id: emp.user_id,
+        phone: emp.phone,
+        User: emp.User,
+        restrictions: emp.restrictions,
+        capacity,
+      };
+    });
+
+    res.status(200).json({ success: true, data: result });
   } catch (error) {
-    console.error("Error fetching employees with restrictions:", error);
+    console.error("Error fetching employees with capacity:", error);
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
