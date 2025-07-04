@@ -1110,7 +1110,8 @@ exports.softDeleteEmployee = async (req, res) => {
 
     console.log(user, "=********* User", employee);
 
-    await user.update({ deleted_at: new Date() });
+    // await user.update({ deleted_at: new Date() });
+    await user.destroy();
     res.status(200).json({ message: "Employee soft deleted successfully" });
   } catch (error) {
     console.error("Error deleting employee:", error);
