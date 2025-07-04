@@ -180,6 +180,8 @@ exports.createEmployee = async (req, res) => {
       { transaction },
     );
 
+    console.log(newUser, "=== New User created..bro");
+
     const newEmployee = await Employee.create(
       {
         user_id: newUser.id,
@@ -206,6 +208,8 @@ exports.createEmployee = async (req, res) => {
       { transaction },
     );
 
+    console.log(newEmployee, "New employee created**************");
+
     // Store employee_restrictions
     if (
       Array.isArray(selectedRestrictions) &&
@@ -214,6 +218,8 @@ exports.createEmployee = async (req, res) => {
       const restrictionIds = selectedRestrictions.map((r) => r.id);
       await newEmployee.setRestrictions(restrictionIds, { transaction });
     }
+
+    console.log("Stored employee restrictions...(((********");
 
     // Store recurring blocked times
     for (const block of recurringTimes) {
@@ -260,8 +266,13 @@ exports.createEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating employee:", error);
+    console.error(
+      "Full Employee Creation Error:",
+      JSON.stringify(error, null, 2),
+    );
+
     await transaction.rollback();
-    res.status(500).json({ message: "Internal Server Error" });
+    res.status(500).json({ message: "Internal Server Error", error });
   }
 };
 
