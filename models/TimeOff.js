@@ -11,8 +11,9 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      name: {
-        type: DataTypes.STRING,
+      reason_id: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
       },
       start_date: {
         type: DataTypes.DATEONLY,
@@ -38,6 +39,11 @@ module.exports = (sequelize, DataTypes) => {
     TimeOff.belongsTo(models.Employee, {
       foreignKey: "employee_id",
       as: "employee",
+    });
+
+    TimeOff.belongsTo(models.TimeOffReason, {
+      foreignKey: "reason_id",
+      as: "reason",
     });
   };
 

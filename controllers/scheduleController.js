@@ -13,6 +13,7 @@ const {
   EventLocationContractor,
   EventLocation,
   Contractor,
+  TimeOffReason,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -964,6 +965,23 @@ const getClassList = async (req, res) => {
   }
 };
 
+const getTimeOffReason = async (req, res) => {
+  try {
+    const reasons = await TimeOffReason.findAll({
+      attributes: ["id", "name"],
+      order: [["name", "ASC"]],
+    });
+
+    res.status(200).json({ success: true, data: reasons });
+  } catch (error) {
+    console.error("Error fetching time off reasons:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch time off reasons",
+    });
+  }
+};
+
 const eventList = async (req, res) => {
   try {
     const events = await Event.findAll({
@@ -1465,6 +1483,7 @@ module.exports = {
   updateSchedule,
   deleteSchedule,
   getSchedulesReport,
+  getTimeOffReason,
   exportSchedulesCSV,
   exportSchedulesExcel,
   checkEmployeeAvailability,

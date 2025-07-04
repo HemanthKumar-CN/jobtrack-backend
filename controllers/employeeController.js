@@ -127,7 +127,12 @@ exports.createEmployee = async (req, res) => {
       email,
       birthdate,
       status,
+      FDC,
+      GES,
+      DrvLic,
+      four,
       type,
+      inactive_reason,
     } = req.body;
 
     // Parse FormData stringified JSON fields
@@ -192,6 +197,11 @@ exports.createEmployee = async (req, res) => {
         comments: comments,
         type: type || "A-List",
         status: status || "active",
+        inactive_reason,
+        fdc: FDC,
+        ges: GES,
+        drv_lic: DrvLic,
+        four: four,
       },
       { transaction },
     );
@@ -229,7 +239,7 @@ exports.createEmployee = async (req, res) => {
       await TimeOff.create(
         {
           employee_id: newEmployee.id,
-          name: timeOff.name,
+          reason_id: timeOff.reason_id,
           start_date: timeOff.startDate,
           end_date: timeOff.endDate,
           start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),

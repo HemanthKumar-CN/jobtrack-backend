@@ -19,6 +19,7 @@ const {
   eventList,
   getLatestConfirmedAssignments,
   getScheduleByToken,
+  getTimeOffReason,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
@@ -27,6 +28,7 @@ router.get("/eventList/event-location-contractors", eventList);
 router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
 router.get("/classification/class-list", getClassList);
+router.get("/timeoff/reason-list", getTimeOffReason);
 router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
 router.get("/employee_schedule/:employee_id", employeeSchedules);
