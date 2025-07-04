@@ -422,6 +422,8 @@ const createBulkSchedule = async (req, res) => {
 
     const scheduleEntries = [];
 
+    console.log(scheduleData, "/..// Schedule data ***********");
+
     for (const [employeeId, details] of Object.entries(scheduleData)) {
       const {
         eventId,
@@ -439,7 +441,14 @@ const createBulkSchedule = async (req, res) => {
 
       const responseToken = crypto.randomBytes(16).toString("hex");
 
-      console.log(responseToken, "????>>>>>>>>>>>=====");
+      console.log(
+        responseToken,
+        "????>>>>>>>>>>>=====",
+        process.env.JWT_SECRET,
+        "==---+++",
+        process.env.FRONTEND_URL,
+        process.env.TWILIO_ACCOUNT_SID,
+      );
 
       scheduleEntries.push({
         employee_id: parseInt(employeeId),
