@@ -20,8 +20,10 @@ app.use(
 
 app.use(cookieParser());
 
-app.use(bodyParser.json());
-app.use(express.urlencoded({ extended: true }));
+// app.use(bodyParser.json());
+// app.use(express.urlencoded({ extended: true }));
+app.use(bodyParser.json({ limit: "20mb" }));
+app.use(express.urlencoded({ extended: true, limit: "20mb" }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Serve uploaded images
 
 // Import routes

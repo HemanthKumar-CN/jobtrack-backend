@@ -256,7 +256,11 @@ exports.createEmployee = async (req, res) => {
     }
 
     await transaction.commit();
-    await sendWelcomeEmail(email, firstName, tempPassword);
+    try {
+      await sendWelcomeEmail(email, firstName, tempPassword);
+    } catch (error) {
+      console.log(error, "Error while sending mail");
+    }
 
     res.status(201).json({
       message: "Employee created successfully",
