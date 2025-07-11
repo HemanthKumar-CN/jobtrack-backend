@@ -14,6 +14,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
+      project_code: {
+        type: DataTypes.STRING,
+        allowNull: true, // set false if mandatory
+      },
+      project_comments: {
+        type: DataTypes.TEXT,
+        allowNull: true, // set false if mandatory
+      },
       start_date: {
         type: DataTypes.DATE,
         allowNull: false,

@@ -8,6 +8,7 @@ const {
   EventLocation,
 } = require("../models");
 const sequelize = require("../config/database");
+const moment = require("moment");
 // Create Event
 // const createEvent = async (req, res) => {
 //   try {
@@ -61,15 +62,29 @@ const createEvent = async (req, res) => {
   const t = await sequelize.transaction();
 
   try {
-    const { event_name, start_date, end_date, locations } = req.body;
+    const {
+      event_name,
+      project_code,
+      project_comments,
+      start_date,
+      end_date,
+      locations,
+    } = req.body;
 
-    if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
+    if (
+      !event_name ||
+      !project_code ||
+      !project_comments ||
+      !start_date ||
+      !end_date ||
+      !Array.isArray(locations)
+    ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     // 1. Create Event
     const event = await Event.create(
-      { event_name, start_date, end_date },
+      { event_name, project_code, project_comments, start_date, end_date },
       { transaction: t },
     );
 
@@ -138,7 +153,15 @@ const createEvent = async (req, res) => {
 // Get All Events
 const getAllEvents = async (req, res) => {
   try {
-    const { search, sortField, sortOrder } = req.query;
+    const {
+      search,
+      sortField,
+      sortOrder,
+      tab,
+      eventFilter,
+      locationFilter,
+      contractorsFilter,
+    } = req.query;
 
     let whereCondition = {};
     if (search) {
@@ -147,6 +170,24 @@ const getAllEvents = async (req, res) => {
           [Op.iLike]: `%${search}%`,
         },
       };
+    }
+
+    if (eventFilter) {
+      whereCondition.id = eventFilter;
+    }
+
+    // Tab-based filtering (current, past, future)
+    const today = moment().startOf("day");
+
+    console.log(today, "++++++Today==");
+
+    if (tab === "Current") {
+      whereCondition.start_date = { [Op.lte]: today.toDate() };
+      whereCondition.end_date = { [Op.gte]: today.toDate() };
+    } else if (tab === "Past") {
+      whereCondition.end_date = { [Op.lt]: today.toDate() };
+    } else if (tab === "Future") {
+      whereCondition.start_date = { [Op.gt]: today.toDate() };
     }
 
     // Default sorting
@@ -160,11 +201,13 @@ const getAllEvents = async (req, res) => {
       }
     }
 
-    const events = await Event.findAll({
+    const rawEvents = await Event.findAll({
       where: whereCondition,
       include: [
         {
           model: EventLocation,
+          required: !!(locationFilter || contractorsFilter),
+          where: locationFilter ? { location_id: locationFilter } : undefined,
           include: [
             {
               model: Location,
@@ -172,6 +215,10 @@ const getAllEvents = async (req, res) => {
             },
             {
               model: EventLocationContractor,
+              required: !!contractorsFilter,
+              where: contractorsFilter
+                ? { contractor_id: contractorsFilter }
+                : undefined,
               include: [
                 {
                   model: Contractor,
@@ -186,9 +233,41 @@ const getAllEvents = async (req, res) => {
       order,
     });
 
+    // Add status: current/past/future to each event
+    const events = rawEvents.map((event) => {
+      const start = moment(event.start_date);
+      const end = moment(event.end_date);
+
+      let status = "Future";
+      if (today.isBetween(start, end, undefined, "[]")) {
+        status = "Current";
+      } else if (today.isAfter(end)) {
+        status = "Past";
+      }
+
+      return {
+        ...event.toJSON(),
+        status,
+      };
+    });
+
     res.status(200).json(events);
   } catch (error) {
     console.error("Error fetching events:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+const getEventList = async (req, res) => {
+  try {
+    const events = await Event.findAll({
+      attributes: ["id", "event_name"],
+      order: [["event_name", "ASC"]], // Optional: sort alphabetically
+    });
+
+    res.status(200).json(events);
+  } catch (error) {
+    console.error("Error fetching event list:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -288,9 +367,23 @@ const updateEvent = async (req, res) => {
 
   try {
     const { id } = req.params;
-    const { event_name, start_date, end_date, locations } = req.body;
+    const {
+      event_name,
+      project_code,
+      project_comments,
+      start_date,
+      end_date,
+      locations,
+    } = req.body;
 
-    if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
+    if (
+      !event_name ||
+      !start_date ||
+      !end_date ||
+      !project_code ||
+      !project_comments ||
+      !Array.isArray(locations)
+    ) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
@@ -302,7 +395,7 @@ const updateEvent = async (req, res) => {
 
     // 2. Update Event basic info
     await event.update(
-      { event_name, start_date, end_date },
+      { event_name, project_code, project_comments, start_date, end_date },
       { transaction: t },
     );
 
@@ -392,4 +485,5 @@ module.exports = {
   getEventById,
   updateEvent,
   deleteEvent,
+  getEventList,
 };
