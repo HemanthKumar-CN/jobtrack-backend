@@ -426,51 +426,51 @@ exports.getAllEmployees = async (req, res) => {
       status,
       sortField,
       sortOrder,
+      typeFilter,
+      firstNameFilter,
+      lastNameFilter,
     } = req.query; // Default pagination values
     const offset = (page - 1) * limit;
 
-    // Build query conditions for search
-    // const whereClause = search
-    //   ? {
-    //       [Op.or]: [
-    //         { "$User.first_name$": { [Op.iLike]: `%${search}%` } }, // Search by first name
-    //         { "$User.last_name$": { [Op.iLike]: `%${search}%` } }, // Search by last name
-    //         { "$User.email$": { [Op.iLike]: `%${search}%` } }, // Search by email
-    //       ],
-    //     }
-    //   : {};
-
+    // 🔍 Building WHERE clause
     const whereClause = {
-      ...(search && {
-        [Op.or]: [
-          { "$User.first_name$": { [Op.iLike]: `%${search}%` } },
-          { "$User.last_name$": { [Op.iLike]: `%${search}%` } },
-          { "$User.email$": { [Op.iLike]: `%${search}%` } },
-        ],
-      }),
-      ...(status && { status }), // <--- Add status to where clause if provided
+      ...(status && { status }),
+      ...(typeFilter && { type: typeFilter }),
     };
 
-    // Default sort
-    let order = [];
+    // 🔍 Building User filter clause
+    const userWhereClause = {
+      deleted_at: null,
+      ...(search && {
+        [Op.or]: [
+          { first_name: { [Op.iLike]: `%${search}%` } },
+          { last_name: { [Op.iLike]: `%${search}%` } },
+          { email: { [Op.iLike]: `%${search}%` } },
+        ],
+      }),
+      ...(firstNameFilter && {
+        first_name: { [Op.iLike]: `%${firstNameFilter}%` },
+      }),
+      ...(lastNameFilter && {
+        last_name: { [Op.iLike]: `%${lastNameFilter}%` },
+      }),
+    };
 
+    // 🔃 Sorting
+    const order = [];
     if (sortField && sortOrder) {
-      if (["first_name", "last_name"].includes(sortField)) {
-        // Sorting on User fields
+      if (["first_name", "last_name", "email"].includes(sortField)) {
         order.push([
           { model: User, as: "User" },
           sortField,
           sortOrder.toUpperCase(),
         ]);
-      } else if (["city", "state", "type"].includes(sortField)) {
-        // Sorting on Employee fields
+      } else {
         order.push([sortField, sortOrder.toUpperCase()]);
       }
     }
 
-    console.log(order, "=================== order =+++");
-
-    // Fetch employees with pagination
+    // 📦 Fetch employees
     const { count, rows: employees } = await Employee.findAndCountAll({
       attributes: [
         "id",
@@ -480,12 +480,19 @@ exports.getAllEmployees = async (req, res) => {
         "state",
         "type",
         "status",
+        "mobile_phone",
+        "phone",
+        "ssn",
+        "comments",
+        "number_id",
+        "postal_code",
       ],
       include: [
         {
           model: User,
-          attributes: ["id", "first_name", "last_name", "email"],
-          where: { deleted_at: null }, // Only include users who are NOT deleted
+          as: "User",
+          attributes: ["id", "first_name", "last_name", "email", "image_url"],
+          where: userWhereClause,
         },
       ],
       where: whereClause,
@@ -497,7 +504,7 @@ exports.getAllEmployees = async (req, res) => {
     res.status(200).json({
       employees,
       total: count,
-      hasMore: offset + employees.length < count, // Check if more data is available
+      hasMore: offset + employees.length < count,
     });
   } catch (error) {
     console.error("Error fetching employees:", error);
