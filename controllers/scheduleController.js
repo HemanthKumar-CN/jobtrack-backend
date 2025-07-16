@@ -724,6 +724,10 @@ const getLatestConfirmedAssignments = async (req, res) => {
             },
           ],
         },
+        {
+          model: Classification,
+          attributes: ["abbreviation"],
+        },
       ],
       order: [["start_time", "DESC"]],
     });
@@ -741,6 +745,7 @@ const getLatestConfirmedAssignments = async (req, res) => {
         const contractor = assignment.EventLocationContractor?.Contractor;
         const location =
           assignment.EventLocationContractor?.EventLocation?.Location;
+        const classification = assignment.Classification;
 
         grouped[assignment.employee_id] = {
           event_name: assignment.Event?.event_name,
@@ -748,9 +753,13 @@ const getLatestConfirmedAssignments = async (req, res) => {
           contractor:
             contractor?.first_name || contractor?.company_name || "N/A",
           start_time: assignment.start_time,
+          classification_id: assignment.classification_id || null,
+          classification_name: classification?.abbreviation || null,
         };
       }
     }
+
+    console.log("grouped assignments:", grouped);
 
     return res.status(200).json(grouped);
   } catch (err) {

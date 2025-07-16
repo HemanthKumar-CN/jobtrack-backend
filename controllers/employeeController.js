@@ -333,7 +333,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
 
   try {
     const employees = await Employee.findAll({
-      attributes: ["id", "user_id", "phone"],
+      attributes: ["id", "user_id", "phone", "type"],
       include: [
         {
           model: User,
@@ -400,6 +400,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         }
       }
 
+      console.log(emp, "?>?////////////");
       return {
         id: emp.id,
         user_id: emp.user_id,
@@ -407,6 +408,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         User: emp.User,
         restrictions: emp.restrictions,
         capacity,
+        type: emp.type,
       };
     });
 
