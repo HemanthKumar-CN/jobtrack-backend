@@ -1014,7 +1014,7 @@ const eventList = async (req, res) => {
             },
             {
               model: EventLocationContractor,
-              attributes: ["id"], // <-- important
+              attributes: ["id", "start_time"], // <-- important
               include: [
                 {
                   model: Contractor,
@@ -1026,7 +1026,10 @@ const eventList = async (req, res) => {
         },
       ],
       order: [["id", "ASC"]],
+      // raw: true,
     });
+
+    console.log(events, "????? Event Locations");
 
     // Transform data for frontend select dropdowns
     const formatted = events.map((event) => ({
@@ -1040,6 +1043,7 @@ const eventList = async (req, res) => {
           name: `${elc.Contractor?.first_name} ${elc.Contractor?.last_name}`,
           company_name: elc.Contractor?.company_name,
           event_location_contractor_id: elc.id, // <-- include this junction table id
+          start_time: elc?.start_time,
         })),
       })),
     }));

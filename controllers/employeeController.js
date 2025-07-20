@@ -332,15 +332,38 @@ exports.getNotScheduledEmployees = async (req, res) => {
   }
 
   try {
+    // 🔸 Step 1: Get employee IDs already scheduled on this date
+    const startOfDay = moment(date).startOf("day").toDate();
+    const endOfDay = moment(date).endOf("day").toDate();
+
+    const scheduled = await Schedule.findAll({
+      where: {
+        is_deleted: false,
+        start_time: {
+          [Op.between]: [startOfDay, endOfDay],
+        },
+      },
+      attributes: ["employee_id"],
+      group: ["employee_id"],
+    });
+
+    const scheduledEmployeeIds = scheduled.map((s) => s.employee_id);
+
+    // 🔸 Step 2: Fetch all employees
     const employees = await Employee.findAll({
+      where: {
+        id: {
+          [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
+        },
+      },
       attributes: ["id", "user_id", "phone", "type"],
       include: [
         {
           model: User,
-          attributes: ["first_name", "last_name"],
+          attributes: ["first_name", "last_name", "image_url"],
           required: true,
           where: {
-            deleted_at: null, // ✅ avoid soft-deleted users
+            deleted_at: null,
           },
         },
         {
@@ -400,7 +423,6 @@ exports.getNotScheduledEmployees = async (req, res) => {
         }
       }
 
-      console.log(emp, "?>?////////////");
       return {
         id: emp.id,
         user_id: emp.user_id,
@@ -921,11 +943,26 @@ exports.getEmployeeById = async (req, res) => {
     // Fetch employee with user details, ensuring user is not soft deleted
     const employee = await Employee.findOne({
       where: { id },
-      include: {
-        model: User,
-        attributes: ["id", "first_name", "last_name", "email", "image_url"],
-        where: { deleted_at: null }, // Exclude soft-deleted users
-      },
+      include: [
+        {
+          model: User,
+          attributes: ["id", "first_name", "last_name", "email", "image_url"],
+          where: { deleted_at: null }, // Exclude soft-deleted users
+        },
+        {
+          model: Restriction,
+          as: "restrictions", // ⬅️ Make sure this matches your association alias
+          through: { attributes: [] }, // remove join table data
+        },
+        {
+          model: RecurringBlockedTime,
+          as: "recurringBlockedTimes",
+        },
+        {
+          model: TimeOff,
+          as: "timeOffs",
+        },
+      ],
     });
 
     if (!employee) {
@@ -997,46 +1034,76 @@ exports.updatePersonalInfo = async (req, res) => {
 };
 
 exports.updateEmployee = async (req, res) => {
-  const transaction = await sequelize.transaction(); // Start transaction
+  const transaction = await sequelize.transaction();
 
   try {
     const { id } = req.params;
-    const updatedData = req.body;
     const {
-      first_name,
-      last_name,
+      firstName,
+      lastName,
       email,
-      role_id,
-      address_1,
-      address_2,
+      address1,
+      address2,
       city,
       state,
-      postal_code,
-      phone,
+      zip,
+      homePhone,
+      mobilePhone,
+      birthdate,
+      status,
+      comments,
+      SSN,
+      SN,
+      numberId,
       type,
-      date_of_birth,
-      hire_date,
-      emergency_contact_name,
-      emergency_contact_phone,
-    } = updatedData;
+      inactive_reason,
+      FDC,
+      GES,
+      DrvLic,
+      four,
+    } = req.body;
 
-    // ✅ Find the employee by ID
+    // Parse complex FormData fields
+    let selectedRestrictions = [];
+    let recurringTimes = [];
+    let timeOffs = [];
+
+    try {
+      if (req.body.selectedRestrictions) {
+        selectedRestrictions = JSON.parse(req.body.selectedRestrictions);
+      }
+      if (req.body.recurringTimes) {
+        recurringTimes = JSON.parse(req.body.recurringTimes);
+      }
+      if (req.body.timeOffs) {
+        timeOffs = JSON.parse(req.body.timeOffs);
+      }
+    } catch (parseErr) {
+      await transaction.rollback();
+      return res
+        .status(400)
+        .json({ message: "Invalid JSON fields in request" });
+    }
+
     const employee = await Employee.findByPk(id, { transaction });
     if (!employee) {
       await transaction.rollback();
       return res.status(404).json({ message: "Employee not found" });
     }
 
-    // ✅ Find the associated user
     const user = await User.findByPk(employee.user_id, { transaction });
     if (!user) {
       await transaction.rollback();
-      return res
-        .status(404)
-        .json({ message: "User not found for this employee" });
+      return res.status(404).json({ message: "User not found" });
     }
 
-    // ✅ Check if the email is being changed and already exists
+    console.log(
+      email,
+      user.email,
+      "=== User found for update",
+      email && email !== user.email,
+    );
+    // Check if email changed
     if (email && email !== user.email) {
       const existingUser = await User.findOne({
         where: { email },
@@ -1048,48 +1115,97 @@ exports.updateEmployee = async (req, res) => {
       }
     }
 
-    // ✅ Handle image upload (if a new file is uploaded)
     const image_url = req.file
       ? `/uploads/${req.file.filename}`
       : user.image_url;
 
-    // ✅ Update User table
+    // Update User
     await user.update(
       {
-        first_name,
-        last_name,
+        first_name: firstName,
+        last_name: lastName,
         email,
-        role_id,
+        role_id: 3,
         image_url,
       },
       { transaction },
     );
 
-    // ✅ Update Employee table
+    // Update Employee
     await employee.update(
       {
-        address_1,
-        address_2,
+        address_1: address1,
+        address_2: address2,
         city,
         state,
-        postal_code,
-        phone,
+        postal_code: zip,
+        phone: homePhone,
+        mobile_phone: mobilePhone,
+        date_of_birth: birthdate,
+        status,
+        comments,
+        ssn: SSN,
+        snf: SN,
+        number_id: numberId,
         type,
-        date_of_birth,
-        hire_date,
-        emergency_contact_name,
-        emergency_contact_phone,
+        inactive_reason,
+        fdc: FDC,
+        ges: GES,
+        drv_lic: DrvLic,
+        four,
       },
       { transaction },
     );
 
-    // ✅ Commit transaction
+    // 🔄 Update Restrictions
+    if (Array.isArray(selectedRestrictions)) {
+      const restrictionIds = selectedRestrictions.map((r) => r.id);
+      await employee.setRestrictions(restrictionIds, { transaction });
+    }
+
+    // 🔁 Update Recurring Blocked Times
+    await RecurringBlockedTime.destroy({
+      where: { employee_id: id },
+      transaction,
+    });
+    for (const block of recurringTimes) {
+      const { days, startDate, endDate, startTime, endTime } = block;
+      for (const day of days) {
+        await RecurringBlockedTime.create(
+          {
+            employee_id: id,
+            day_of_week: day,
+            start_date: startDate,
+            end_date: endDate,
+            start_time: new Date(startTime).toTimeString().slice(0, 5),
+            end_time: new Date(endTime).toTimeString().slice(0, 5),
+          },
+          { transaction },
+        );
+      }
+    }
+
+    // 🔁 Update Time Offs
+    await TimeOff.destroy({ where: { employee_id: id }, transaction });
+    for (const timeOff of timeOffs) {
+      await TimeOff.create(
+        {
+          employee_id: id,
+          reason_id: timeOff.reason_id,
+          start_date: timeOff.startDate,
+          end_date: timeOff.endDate,
+          start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),
+          end_time: new Date(timeOff.endTime).toTimeString().slice(0, 5),
+        },
+        { transaction },
+      );
+    }
+
     await transaction.commit();
 
-    // ✅ Format response to include user inside employee
     const updatedEmployee = {
       ...employee.toJSON(),
-      User: user.toJSON(), // Embed user inside employee object
+      User: user.toJSON(),
     };
 
     res.status(200).json({
@@ -1098,8 +1214,8 @@ exports.updateEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating employee:", error);
-    await transaction.rollback(); // ❌ Rollback on error
-    res.status(500).json({ message: "Internal Server Error" });
+    await transaction.rollback();
+    res.status(500).json({ message: "Internal Server Error", error });
   }
 };
 
