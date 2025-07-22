@@ -323,12 +323,17 @@ exports.getAllRestrictions = async (req, res) => {
 // };
 
 exports.getNotScheduledEmployees = async (req, res) => {
-  const { date, search = "" } = req.query;
+  const { date, search = "", sortField = "snf", sortOrder = "asc" } = req.query;
 
   if (!moment(date, "YYYY-MM-DD", true).isValid()) {
     return res
       .status(400)
       .json({ success: false, message: "Invalid date format" });
+  }
+
+  let order = [];
+  if (sortField && sortOrder) {
+    order.push([sortField, sortOrder.toUpperCase()]);
   }
 
   try {
@@ -356,6 +361,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
         },
       },
+      order,
       attributes: ["id", "user_id", "phone", "type", "snf"],
       include: [
         {
