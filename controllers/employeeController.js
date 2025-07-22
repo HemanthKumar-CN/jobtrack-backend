@@ -356,7 +356,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
         },
       },
-      attributes: ["id", "user_id", "phone", "type", "ssn"],
+      attributes: ["id", "user_id", "phone", "type", "snf"],
       include: [
         {
           model: User,
@@ -437,7 +437,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         restrictions: emp.restrictions,
         capacity,
         type: emp.type,
-        ssn: emp.ssn,
+        snf: emp.snf,
       };
     });
 
@@ -515,7 +515,7 @@ exports.getAllEmployees = async (req, res) => {
         "status",
         "mobile_phone",
         "phone",
-        "ssn",
+        "snf",
         "comments",
         "number_id",
         "postal_code",
