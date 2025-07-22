@@ -323,7 +323,7 @@ exports.getAllRestrictions = async (req, res) => {
 // };
 
 exports.getNotScheduledEmployees = async (req, res) => {
-  const { date } = req.query;
+  const { date, search = "" } = req.query;
 
   if (!moment(date, "YYYY-MM-DD", true).isValid()) {
     return res
@@ -356,7 +356,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
         },
       },
-      attributes: ["id", "user_id", "phone", "type"],
+      attributes: ["id", "user_id", "phone", "type", "ssn"],
       include: [
         {
           model: User,
@@ -364,6 +364,12 @@ exports.getNotScheduledEmployees = async (req, res) => {
           required: true,
           where: {
             deleted_at: null,
+            ...(search && {
+              [Op.or]: [
+                { first_name: { [Op.iLike]: `%${search}%` } },
+                { last_name: { [Op.iLike]: `%${search}%` } },
+              ],
+            }),
           },
         },
         {
@@ -431,8 +437,11 @@ exports.getNotScheduledEmployees = async (req, res) => {
         restrictions: emp.restrictions,
         capacity,
         type: emp.type,
+        ssn: emp.ssn,
       };
     });
+
+    console.log(employees, "Result of not scheduled employees");
 
     res.status(200).json({ success: true, data: result });
   } catch (error) {
