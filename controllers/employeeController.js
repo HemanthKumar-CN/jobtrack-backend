@@ -10,7 +10,7 @@ const {
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
 const sequelize = require("../config/database");
-const { Op } = require("sequelize");
+const { Op, Sequelize } = require("sequelize");
 const moment = require("moment");
 const sendWelcomeEmail = require("../utils/mailer");
 
@@ -332,7 +332,12 @@ exports.getNotScheduledEmployees = async (req, res) => {
   }
 
   let order = [];
-  if (sortField && sortOrder) {
+  if (sortField === "snf") {
+    order.push([
+      Sequelize.cast(Sequelize.col("snf"), "INTEGER"),
+      sortOrder.toUpperCase(),
+    ]);
+  } else if (sortField && sortOrder) {
     order.push([sortField, sortOrder.toUpperCase()]);
   }
 
