@@ -1077,8 +1077,14 @@ const getTimeOffReason = async (req, res) => {
 
 const eventList = async (req, res) => {
   try {
+    const today = moment().startOf("day").toDate(); // Get today's date
+
     const events = await Event.findAll({
       attributes: ["id", "event_name"],
+      where: {
+        start_date: { [Op.lte]: today },
+        end_date: { [Op.gte]: today },
+      },
       include: [
         {
           model: EventLocation,
@@ -1103,8 +1109,6 @@ const eventList = async (req, res) => {
       order: [["id", "ASC"]],
       // raw: true,
     });
-
-    console.log(events, "????? Event Locations");
 
     // Transform data for frontend select dropdowns
     const formatted = events.map((event) => ({
