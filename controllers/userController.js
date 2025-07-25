@@ -168,7 +168,7 @@ exports.getScheduleByToken = async (req, res) => {
               include: [
                 {
                   model: Location,
-                  attributes: ["name"],
+                  attributes: ["name", "image_url"],
                 },
               ],
             },
@@ -181,10 +181,13 @@ exports.getScheduleByToken = async (req, res) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
-    const eventName = schedule?.Event?.event_name || "N/A";
+    const eventName = schedule?.Event?.event_name || "";
     const startTime = schedule?.start_time || null;
     const locationName =
-      schedule?.EventLocationContractor?.EventLocation?.Location?.name || "N/A";
+      schedule?.EventLocationContractor?.EventLocation?.Location?.name || "";
+    const locationImageUrl =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.image_url ||
+      null;
     const contractor = schedule?.EventLocationContractor?.Contractor || {};
     const contractorName = `${contractor.first_name || ""} ${
       contractor.last_name || ""
@@ -194,9 +197,10 @@ exports.getScheduleByToken = async (req, res) => {
       event_name: eventName,
       start_time: startTime,
       location: locationName,
-      contractor: contractorName || contractor.company_name || "N/A",
+      contractor: contractorName || contractor.company_name || "",
       status: schedule.status,
       comment: schedule.comments,
+      locationImageUrl,
     });
   } catch (error) {
     console.error("Error fetching schedule by token:", error);

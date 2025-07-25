@@ -14,6 +14,8 @@ const {
   EventLocation,
   Contractor,
   TimeOffReason,
+  TimeOff,
+  RecurringBlockedTime,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -462,8 +464,27 @@ const createBulkSchedule = async (req, res) => {
         responded_at: null,
       });
 
+      const event = await Event.findByPk(eventId, {
+        attributes: ["event_name"],
+      });
+
+      const locationData = await EventLocationContractor.findByPk(
+        locationContractorId,
+        {
+          include: {
+            model: EventLocation,
+            include: {
+              model: Location,
+              attributes: ["name"],
+            },
+          },
+        },
+      );
+
       const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
-      const messageBody = `Hi! You're scheduled on ${new Date(
+      const messageBody = `You are scheduled for ${event.event_name} at ${
+        locationData.EventLocation.Location.name
+      } from ${new Date(
         startTime,
       ).toLocaleString()}. Confirm 👉 ${scheduleLink}`;
 
@@ -471,6 +492,7 @@ const createBulkSchedule = async (req, res) => {
       const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
 
       console.log("/////===============", scheduleLink);
+      console.log(messageBody, "sms message body--", "===");
 
       await client.messages.create({
         body: messageBody,
@@ -478,8 +500,6 @@ const createBulkSchedule = async (req, res) => {
         to: employeePhone,
       });
     }
-
-    console.log(scheduleEntries, "==== Schedule Entries");
 
     await Schedule.bulkCreate(scheduleEntries, { returning: true });
 
@@ -571,15 +591,25 @@ const createBulkSchedule = async (req, res) => {
 
 const getSchedules = async (req, res) => {
   try {
-    const { status, task_event_id, location_id, search } = req.query;
+    const { status, task_event_id, location_id, search, capacity } = req.query;
     const date = req.params.date;
+
+    const inputDate = moment(date, "YYYY-MM-DD"); // 🔸 Added
+
+    const dayLetterMap = {
+      0: "Su",
+      1: "M",
+      2: "T",
+      3: "W",
+      4: "Th",
+      5: "F",
+      6: "Sa",
+    }; // 🔸 Added
+    const dayLetter = dayLetterMap[inputDate.day()]; // 🔸 Added
 
     const whereClause = {
       is_deleted: false,
-      [Op.and]: [
-        // Filter by date (compare only YYYY-MM-DD part of start_time)
-        where(fn("DATE", col("Schedule.start_time")), date),
-      ],
+      [Op.and]: [where(fn("DATE", col("Schedule.start_time")), date)],
     };
 
     if (status && ["pending", "confirmed", "declined"].includes(status)) {
@@ -595,7 +625,6 @@ const getSchedules = async (req, res) => {
         location_id;
     }
 
-    // If search text present, filter by employee first_name or last_name
     const userWhereClause = {};
     if (search) {
       userWhereClause[Op.or] = [
@@ -604,24 +633,32 @@ const getSchedules = async (req, res) => {
       ];
     }
 
-    console.log(whereClause, "??--======???", userWhereClause);
-
     const schedules = await Schedule.findAll({
       where: whereClause,
       include: [
         {
           model: Employee,
-          attributes: ["id", "phone"],
-          required: !!search, // 👈 Enforce INNER JOIN only if search is active
+          attributes: ["id", "phone", "snf"],
+          required: !!search,
           include: [
             {
               model: User,
               attributes: ["first_name", "last_name"],
-              ...(search && { where: userWhereClause, required: true }), // 👈 Add filter + INNER JOIN
+              ...(search && { where: userWhereClause, required: true }),
             },
             {
               association: "restrictions",
               through: { attributes: [] },
+            },
+            {
+              model: RecurringBlockedTime,
+              as: "recurringBlockedTimes",
+              attributes: ["start_date", "end_date", "day_of_week"],
+            },
+            {
+              model: TimeOff,
+              as: "timeOffs",
+              attributes: ["start_date", "end_date"],
             },
           ],
         },
@@ -662,6 +699,7 @@ const getSchedules = async (req, res) => {
       order: [["start_time", "ASC"]],
     });
 
+    // 🟩 ADDED CAPACITY CALCULATION
     const formatted = schedules.map((schedule) => {
       const employee = schedule.Employee || {};
       const user = employee.User || {};
@@ -671,14 +709,39 @@ const getSchedules = async (req, res) => {
       const classification = schedule.Classification || {};
       const EventLocationContractor = contractor;
 
+      // 🔸 Capacity logic copied from other controller
+      let capacity = "Available";
+      const isUnavailable = (employee.timeOffs || []).some(
+        (t) =>
+          moment(t.start_date).isSameOrBefore(inputDate, "day") &&
+          moment(t.end_date).isSameOrAfter(inputDate, "day"),
+      );
+
+      if (isUnavailable) {
+        capacity = "Unavailable";
+      } else {
+        const isLimited = (employee.recurringBlockedTimes || []).some(
+          (b) =>
+            b.day_of_week === dayLetter &&
+            moment(b.start_date).isSameOrBefore(inputDate, "day") &&
+            moment(b.end_date).isSameOrAfter(inputDate, "day"),
+        );
+
+        if (isLimited) {
+          capacity = "Limited";
+        }
+      }
+
       return {
         id: schedule.id,
-        first_name: user.first_name || "N/A",
-        last_name: user.last_name || "N/A",
-        employee_id: employee.id || "N/A",
-        phone: employee.phone || "N/A",
-        status: schedule.status || "N/A",
+        first_name: user.first_name || "",
+        last_name: user.last_name || "",
+        employee_id: employee.id || "",
+        phone: employee.phone || "",
+        snf: employee.snf || "",
+        status: schedule.status || "",
         employee_restrictions: restriction,
+        capacity, // ✅ Added to response
         event: {
           event_id: event.id,
           eventName: event.event_name,
@@ -693,7 +756,11 @@ const getSchedules = async (req, res) => {
       };
     });
 
-    return res.status(200).json(formatted);
+    const filtered = capacity
+      ? formatted.filter((row) => row.capacity === capacity)
+      : formatted;
+
+    return res.status(200).json(filtered);
   } catch (error) {
     console.error("Error fetching schedules:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -710,27 +777,31 @@ const getLatestConfirmedAssignments = async (req, res) => {
         status: "confirmed",
       },
       include: [
-        { model: Event, attributes: ["event_name"] },
+        { model: Event, attributes: ["event_name", "id"] },
         {
           model: EventLocationContractor,
+          attributes: ["id"],
           include: [
             {
               model: Contractor,
-              attributes: ["first_name", "last_name", "company_name"],
+              attributes: ["first_name", "last_name", "company_name", "id"],
             },
             {
               model: EventLocation,
-              include: [{ model: Location, attributes: ["name"] }],
+              attributes: ["id"],
+              include: [{ model: Location, attributes: ["name", "id"] }],
             },
           ],
         },
         {
           model: Classification,
-          attributes: ["abbreviation"],
+          attributes: ["abbreviation", "id"],
         },
       ],
       order: [["start_time", "DESC"]],
     });
+
+    console.log(assignments, "Latest confirmed assignments");
 
     // Group by employee_id and return only latest per employee
     const grouped = {};
@@ -749,12 +820,16 @@ const getLatestConfirmedAssignments = async (req, res) => {
 
         grouped[assignment.employee_id] = {
           event_name: assignment.Event?.event_name,
-          location: location?.name || "N/A",
-          contractor:
-            contractor?.first_name || contractor?.company_name || "N/A",
+          event_id: assignment.Event?.id,
+          location: location?.name || "",
+          location_id: location?.id || null,
+          event_location_contractor_id:
+            assignment.event_location_contractor_id || "",
+          contractor: contractor?.first_name || contractor?.company_name || "",
           start_time: assignment.start_time,
           classification_id: assignment.classification_id || null,
           classification_name: classification?.abbreviation || null,
+          comments: assignment.comments || "",
         };
       }
     }
@@ -955,8 +1030,8 @@ const getMonthlySchedules = async (req, res) => {
         start_date: schedule.start_date,
         end_date: schedule.end_date,
         status: schedule.status,
-        event_name: schedule.Event?.event_name || "N/A", // Get event_name, fallback to "N/A"
-        location_name: schedule.Event?.Location?.name || "N/A", // Get location name, fallback to "N/A"
+        event_name: schedule.Event?.event_name || "", // Get event_name, fallback to ""
+        location_name: schedule.Event?.Location?.name || "", // Get location name, fallback to ""
         colour_code: schedule.Event?.Location?.colour_code,
       });
 
@@ -1145,8 +1220,46 @@ const updateSchedule = async (req, res) => {
       return res.status(404).json({ message: "Schedule not found" });
     }
 
+    console.log(schedule, "????? Schedule to update");
+
+    const event = await Event.findByPk(updateData.event_id, {
+      attributes: ["event_name"],
+    });
+
+    const locationData = await EventLocationContractor.findByPk(
+      updateData.event_location_contractor_id,
+      {
+        include: {
+          model: EventLocation,
+          include: {
+            model: Location,
+            attributes: ["name"],
+          },
+        },
+      },
+    );
+
+    const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
+    const messageBody = `You are scheduled for ${event.event_name} at ${
+      locationData.EventLocation.Location.name
+    } from ${new Date(
+      updateData.start_time,
+    ).toLocaleString()}. Confirm 👉 ${scheduleLink}`;
+
+    // **Send SMS to Employee**
+    const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+
+    console.log("/////===============", scheduleLink);
+    console.log(messageBody, "sms message body--", "===");
+
+    await client.messages.create({
+      body: messageBody,
+      from: "+17087345990",
+      to: employeePhone,
+    });
+
     // Update only fields provided in request body
-    await schedule.update(updateData);
+    await schedule.update({ ...updateData, status: "pending" });
 
     return res.status(200).json({
       message: "Schedule updated successfully",

@@ -365,6 +365,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         id: {
           [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
         },
+        status: "active", // Only active employees
       },
       order,
       attributes: ["id", "user_id", "phone", "type", "snf"],
