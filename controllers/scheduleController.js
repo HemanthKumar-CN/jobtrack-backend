@@ -482,11 +482,15 @@ const createBulkSchedule = async (req, res) => {
       );
 
       const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
-      const messageBody = `You are scheduled for ${event.event_name} at ${
-        locationData.EventLocation.Location.name
-      } from ${new Date(
-        startTime,
-      ).toLocaleString()}. Confirm 👉 ${scheduleLink}`;
+      const formattedTime = new Date(startTime).toLocaleString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+      const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
       // **Send SMS to Employee**
       const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
