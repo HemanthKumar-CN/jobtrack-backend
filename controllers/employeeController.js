@@ -510,6 +510,18 @@ exports.getAllEmployees = async (req, res) => {
           sortField,
           sortOrder.toUpperCase(),
         ]);
+      } else if (sortField === "snf") {
+        // order.push([
+        //   Sequelize.cast(Sequelize.col("snf"), "INTEGER"),
+        //   sortOrder.toUpperCase(),
+        // ]);
+
+        order.push([
+          Sequelize.literal(
+            `COALESCE(NULLIF("Employee"."snf", '')::INTEGER, 999999)`,
+          ),
+          sortOrder.toUpperCase(),
+        ]);
       } else {
         order.push([sortField, sortOrder.toUpperCase()]);
       }
