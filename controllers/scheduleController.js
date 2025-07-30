@@ -700,7 +700,8 @@ const getSchedules = async (req, res) => {
           attributes: ["abbreviation", "description", "id"],
         },
       ],
-      order: [["start_time", "ASC"]],
+      // order: [["start_time", "ASC"]],
+      order: [[{ model: Employee }, "snf", "ASC"]],
     });
 
     // 🟩 ADDED CAPACITY CALCULATION
@@ -1248,11 +1249,18 @@ const updateSchedule = async (req, res) => {
     );
 
     const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
-    const messageBody = `You are scheduled for ${event.event_name} at ${
-      locationData.EventLocation.Location.name
-    } from ${new Date(
-      updateData.start_time,
-    ).toLocaleString()}. Confirm 👉 ${scheduleLink}`;
+    const formattedTime = new Date(updateData.start_time).toLocaleString(
+      undefined,
+      {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      },
+    );
+    const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
     // **Send SMS to Employee**
     const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
