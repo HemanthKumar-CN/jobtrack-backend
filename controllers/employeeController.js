@@ -323,7 +323,15 @@ exports.getAllRestrictions = async (req, res) => {
 // };
 
 exports.getNotScheduledEmployees = async (req, res) => {
-  const { date, search = "", sortField = "snf", sortOrder = "asc" } = req.query;
+  const {
+    date,
+    search = "",
+    sortField = "snf",
+    sortOrder = "asc",
+    type,
+    capacity,
+    restriction,
+  } = req.query;
 
   if (!moment(date, "YYYY-MM-DD", true).isValid()) {
     return res
@@ -366,6 +374,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           [Op.notIn]: scheduledEmployeeIds, // ⛔️ Filter out already scheduled
         },
         status: "active", // Only active employees
+        ...(type && { type }),
       },
       order,
       attributes: ["id", "user_id", "phone", "type", "snf"],
@@ -415,43 +424,56 @@ exports.getNotScheduledEmployees = async (req, res) => {
     };
     const dayLetter = dayLetterMap[inputDate.day()];
 
-    const result = employees.map((emp) => {
-      let capacity = "Available";
+    const result = employees
+      .map((emp) => {
+        let capacity = "Available";
 
-      const isUnavailable = emp.timeOffs.some((t) => {
-        return (
-          moment(t.start_date).isSameOrBefore(inputDate, "day") &&
-          moment(t.end_date).isSameOrAfter(inputDate, "day")
-        );
-      });
-
-      if (isUnavailable) {
-        capacity = "Unavailable";
-      } else {
-        const isLimited = emp.recurringBlockedTimes.some((b) => {
+        const isUnavailable = emp.timeOffs.some((t) => {
           return (
-            b.day_of_week === dayLetter &&
-            moment(b.start_date).isSameOrBefore(inputDate, "day") &&
-            moment(b.end_date).isSameOrAfter(inputDate, "day")
+            moment(t.start_date).isSameOrBefore(inputDate, "day") &&
+            moment(t.end_date).isSameOrAfter(inputDate, "day")
           );
         });
 
-        if (isLimited) {
-          capacity = "Limited";
-        }
-      }
+        if (isUnavailable) {
+          capacity = "Unavailable";
+        } else {
+          const isLimited = emp.recurringBlockedTimes.some((b) => {
+            return (
+              b.day_of_week === dayLetter &&
+              moment(b.start_date).isSameOrBefore(inputDate, "day") &&
+              moment(b.end_date).isSameOrAfter(inputDate, "day")
+            );
+          });
 
-      return {
-        id: emp.id,
-        user_id: emp.user_id,
-        phone: emp.phone,
-        User: emp.User,
-        restrictions: emp.restrictions,
-        capacity,
-        type: emp.type,
-        snf: emp.snf,
-      };
-    });
+          if (isLimited) {
+            capacity = "Limited";
+          }
+        }
+
+        return {
+          id: emp.id,
+          user_id: emp.user_id,
+          phone: emp.phone,
+          User: emp.User,
+          restrictions: emp.restrictions,
+          capacity,
+          type: emp.type,
+          snf: emp.snf,
+        };
+      })
+      .filter((emp) => {
+        // ✅ Filter by capacity (if passed)
+        if (capacity && emp.capacity !== capacity) return false;
+
+        if (restriction) {
+          const hasRestriction = emp.restrictions.some(
+            (r) => r.id === parseInt(restriction),
+          );
+          if (!hasRestriction) return false;
+        }
+        return true;
+      });
 
     console.log(employees, "Result of not scheduled employees");
 
