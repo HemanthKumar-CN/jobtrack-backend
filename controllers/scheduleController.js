@@ -517,82 +517,6 @@ const createBulkSchedule = async (req, res) => {
   }
 };
 
-// const getSchedules = async (req, res) => {
-//   try {
-//     const { date } = req.params; // Date from request (YYYY-MM-DD)
-
-//     // Fetch schedules where the given date is within start_date and end_date range
-//     const schedules = await Schedule.findAll({
-//       where: {
-//         start_date: { [Op.lte]: date }, // start_date <= date
-//         end_date: { [Op.gte]: date }, // end_date >= date
-//         is_deleted: false,
-//       },
-//       include: [
-//         {
-//           model: Employee,
-//           attributes: ["id", "user_id"],
-//           include: [
-//             {
-//               model: User,
-//               attributes: ["first_name", "last_name"], // Get user details
-//             },
-//           ],
-//         },
-//         {
-//           model: Event,
-//           attributes: ["id", "location_id"],
-//           include: [
-//             {
-//               model: Location,
-//               attributes: ["id", "colour_code", "name"],
-//             },
-//           ],
-//         },
-//       ],
-//       order: [["start_time", "ASC"]], // Sort schedules by start time
-//     });
-
-//     // console.log(schedules, "==== Schedules");
-
-//     // Format response grouped by user
-//     const groupedSchedules = schedules.reduce((acc, schedule) => {
-//       const user = schedule.Employee.User;
-//       const userId = schedule.Employee.user_id;
-
-//       const colour_code = schedule.Event?.Location?.colour_code || null;
-//       const locationName = schedule.Event?.Location?.name || "";
-
-//       if (!acc[userId]) {
-//         acc[userId] = {
-//           user_id: userId,
-//           first_name: user.first_name,
-//           last_name: user.last_name,
-//           schedules: [],
-//         };
-//       }
-
-//       acc[userId].schedules.push({
-//         schedule_id: schedule.id,
-//         title: schedule.title,
-//         description: schedule.description,
-//         start_time: schedule.start_time,
-//         end_time: schedule.end_time,
-//         status: schedule.status,
-//         colour_code: colour_code,
-//         locationName: locationName,
-//       });
-
-//       return acc;
-//     }, {});
-
-//     res.status(200).json(Object.values(groupedSchedules));
-//   } catch (error) {
-//     console.error("Error fetching schedules:", error);
-//     res.status(500).json({ error: "Internal Server Error" });
-//   }
-// };
-
 const getSchedules = async (req, res) => {
   try {
     const { status, task_event_id, location_id, search, capacity } = req.query;
@@ -701,7 +625,7 @@ const getSchedules = async (req, res) => {
         },
       ],
       // order: [["start_time", "ASC"]],
-      order: [[{ model: Employee }, "snf", "ASC"]],
+      order: [[sequelize.literal('"Employee"."snf"::INTEGER'), "ASC"]],
     });
 
     // 🟩 ADDED CAPACITY CALCULATION
