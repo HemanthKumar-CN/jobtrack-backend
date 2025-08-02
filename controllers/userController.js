@@ -153,6 +153,15 @@ exports.getScheduleByToken = async (req, res) => {
       },
       include: [
         {
+          model: Employee,
+          include: [
+            {
+              model: User,
+              attributes: ["first_name", "last_name"],
+            },
+          ],
+        },
+        {
           model: Event,
           attributes: ["event_name"],
         },
@@ -168,7 +177,15 @@ exports.getScheduleByToken = async (req, res) => {
               include: [
                 {
                   model: Location,
-                  attributes: ["name", "image_url"],
+                  attributes: [
+                    "name",
+                    "image_url",
+                    "address_1",
+                    "address_2",
+                    "city",
+                    "state",
+                    "postal_code",
+                  ],
                 },
               ],
             },
@@ -181,10 +198,30 @@ exports.getScheduleByToken = async (req, res) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
+    console.log(
+      schedule.createdAt,
+      schedule.updatedAt,
+      schedule.createdAt.getTime(),
+      "+++++++++++",
+    );
+
     const eventName = schedule?.Event?.event_name || "";
     const startTime = schedule?.start_time || null;
     const locationName =
       schedule?.EventLocationContractor?.EventLocation?.Location?.name || "";
+    const address1 =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.address_1 ||
+      "";
+    const address2 =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.address_2 ||
+      "";
+    const city =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.city || "";
+    const state =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.state || "";
+    const postalCode =
+      schedule?.EventLocationContractor?.EventLocation?.Location?.postal_code ||
+      "";
     const locationImageUrl =
       schedule?.EventLocationContractor?.EventLocation?.Location?.image_url ||
       null;
@@ -192,6 +229,8 @@ exports.getScheduleByToken = async (req, res) => {
     const contractorName = `${contractor.first_name || ""} ${
       contractor.last_name || ""
     }`.trim();
+    const employeeName = `${schedule?.Employee?.User?.first_name} ${schedule?.Employee?.User?.last_name}`;
+    const isNew = schedule.createdAt.getTime() === schedule.updatedAt.getTime();
 
     return res.status(200).json({
       event_name: eventName,
@@ -201,6 +240,13 @@ exports.getScheduleByToken = async (req, res) => {
       status: schedule.status,
       comment: schedule.comments,
       locationImageUrl,
+      address1,
+      address2,
+      city,
+      state,
+      postalCode,
+      employeeName,
+      isNew,
     });
   } catch (error) {
     console.error("Error fetching schedule by token:", error);
