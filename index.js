@@ -33,6 +33,8 @@ const scheduleRoutes = require("./routes/scheduleRoutes");
 const contractorRoutes = require("./routes/contractorRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const reportRoutes = require("./routes/reportRoutes");
+const restrictionRoutes = require("./routes/restrictionRoutes");
+const classificationRoutes = require("./routes/classificationRoutes");
 
 const sequelize = require("./config/database");
 const { authenticateUser } = require("./utils/authenticateUser");
@@ -76,6 +78,8 @@ app.use("/api/schedules", authenticateUser, scheduleRoutes);
 app.use("/api/contractors", authenticateUser, contractorRoutes);
 app.use("/api/events", authenticateUser, eventRoutes);
 app.use("/api/reports", authenticateUser, reportRoutes);
+app.use("/api/restrictions", authenticateUser, restrictionRoutes);
+app.use("/api/classifications", authenticateUser, classificationRoutes);
 
 // Dummy function to update employee status in DB
 async function updateEmployeeAvailability(phoneNumber, isAvailable) {

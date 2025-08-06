@@ -1,0 +1,78 @@
+const { Op } = require("sequelize");
+const { Restriction } = require("../models");
+
+const getAllRestrictions = async (req, res) => {
+  try {
+    const { status = "all", search = "" } = req.query;
+
+    // 🔍 Build dynamic where condition
+    let where = {};
+
+    // 🔸 Filter by status (only if not 'all')
+    if (status !== "") {
+      where.status = status;
+    }
+
+    // 🔸 Search by description
+    if (search.trim() !== "") {
+      where.description = {
+        [Op.iLike]: `%${search.trim()}%`,
+      };
+    }
+
+    const restrictions = await Restriction.findAll({
+      where,
+      order: [["description", "ASC"]],
+    });
+
+    res.status(200).json(restrictions);
+  } catch (error) {
+    console.error("Error fetching restrictions:", error);
+    res.status(500).json({ message: "Failed to fetch restrictions" });
+  }
+};
+
+const bulkCreate = async (req, res) => {
+  const { restrictions } = req.body;
+
+  if (!Array.isArray(restrictions) || restrictions.length === 0) {
+    return res.status(400).json({ message: "No restrictions provided." });
+  }
+
+  try {
+    const newRestrictions = await Restriction.bulkCreate(restrictions);
+    return res
+      .status(201)
+      .json({ message: "Created successfully", restrictions: newRestrictions });
+  } catch (err) {
+    console.error("Bulk Create Error:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const updateRestriction = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, status } = req.body;
+
+    const restriction = await Restriction.findByPk(id);
+    if (!restriction) {
+      return res.status(404).json({ message: "Restriction not found" });
+    }
+
+    restriction.description = description;
+    restriction.status = status;
+    await restriction.save();
+
+    res.json(restriction);
+  } catch (error) {
+    console.error("Error updating restriction:", error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+module.exports = {
+  getAllRestrictions,
+  bulkCreate,
+  updateRestriction,
+};
