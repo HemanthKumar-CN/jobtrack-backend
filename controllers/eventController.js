@@ -6,61 +6,107 @@ const {
   Location,
   EventLocationContractor,
   EventLocation,
+  ContractorClass,
+  Classification,
 } = require("../models");
 const sequelize = require("../config/database");
 const moment = require("moment");
 // Create Event
+
 // const createEvent = async (req, res) => {
+//   const t = await sequelize.transaction();
+
 //   try {
-//     const { event_name, contractor_id, location_id, start_date, end_date } =
-//       req.body;
+//     const {
+//       event_name,
+//       project_code,
+//       project_comments,
+//       start_date,
+//       end_date,
+//       locations,
+//     } = req.body;
 
 //     if (
 //       !event_name ||
-//       !contractor_id ||
-//       !location_id ||
+//       !project_code ||
+//       !project_comments ||
 //       !start_date ||
-//       !end_date
+//       !end_date ||
+//       !Array.isArray(locations)
 //     ) {
-//       return res.status(400).json({ error: "All fields are required" });
+//       return res.status(400).json({ error: "Missing required fields" });
 //     }
 
-//     console.log(req.body, "????//////");
-//     const newEvent = await Event.create({
-//       event_name,
-//       contractor_id,
-//       location_id,
-//       start_date,
-//       end_date,
-//     });
+//     // 1. Create Event
+//     const event = await Event.create(
+//       { event_name, project_code, project_comments, start_date, end_date },
+//       { transaction: t },
+//     );
 
-//     // Fetch event with associated location and contractor details
-//     const createdEvent = await Event.findOne({
-//       where: { id: newEvent.id },
+//     // 2. Create EventLocations and nested Contractors
+//     for (const loc of locations) {
+//       const { location_id, contractors } = loc;
+
+//       const eventLocation = await EventLocation.create(
+//         {
+//           event_id: event.id,
+//           location_id,
+//         },
+//         { transaction: t },
+//       );
+
+//       const contractorRecords = contractors.map((contractor) => ({
+//         event_location_id: eventLocation.id,
+//         contractor_id: contractor.contractor_id,
+//         start_time: contractor.start_time,
+//         end_time: contractor.end_time,
+//       }));
+
+//       await EventLocationContractor.bulkCreate(contractorRecords, {
+//         transaction: t,
+//       });
+//     }
+
+//     // 3. Commit transaction
+//     await t.commit();
+
+//     // 4. Fetch full nested structure after commit
+//     const fullEvent = await Event.findOne({
+//       where: { id: event.id },
 //       include: [
 //         {
-//           model: Location,
-//           //   as: "location",
-//           attributes: ["id", "name"], // Fetch location name
-//         },
-//         {
-//           model: Contractor,
-//           //   as: "contractor",
-//           attributes: ["id", "company_name"], // Fetch contractor name
+//           model: EventLocation,
+//           include: [
+//             {
+//               model: Location,
+//               attributes: ["id", "name"],
+//             },
+//             {
+//               model: EventLocationContractor,
+//               include: [
+//                 {
+//                   model: Contractor,
+//                   attributes: ["id", "company_name"],
+//                 },
+//               ],
+//             },
+//           ],
 //         },
 //       ],
 //     });
 
-//     res.status(201).json(createdEvent);
+//     res.status(201).json(fullEvent);
 //   } catch (error) {
-//     console.log(error, "========");
+//     console.error("createEvent error:", error);
+
+//     // Rollback transaction on error
+//     await t.rollback();
 //     res.status(500).json({ error: error.message });
 //   }
 // };
 
 const createEvent = async (req, res) => {
   const t = await sequelize.transaction();
-
   try {
     const {
       event_name,
@@ -71,24 +117,23 @@ const createEvent = async (req, res) => {
       locations,
     } = req.body;
 
-    if (
-      !event_name ||
-      !project_code ||
-      !project_comments ||
-      !start_date ||
-      !end_date ||
-      !Array.isArray(locations)
-    ) {
+    if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 1. Create Event
+    // 1️⃣ Create the Event
     const event = await Event.create(
-      { event_name, project_code, project_comments, start_date, end_date },
+      {
+        event_name,
+        project_code,
+        project_comments,
+        start_date: moment(start_date).toDate(),
+        end_date: moment(end_date).toDate(),
+      },
       { transaction: t },
     );
 
-    // 2. Create EventLocations and nested Contractors
+    // 2️⃣ Loop through locations
     for (const loc of locations) {
       const { location_id, contractors } = loc;
 
@@ -100,19 +145,40 @@ const createEvent = async (req, res) => {
         { transaction: t },
       );
 
-      const contractorRecords = contractors.map((contractor) => ({
-        event_location_id: eventLocation.id,
-        contractor_id: contractor.contractor_id,
-        start_time: contractor.start_time,
-        end_time: contractor.end_time,
-      }));
+      // 3️⃣ Loop through contractors
+      for (const contractor of contractors) {
+        const assignment = await EventLocationContractor.create(
+          {
+            event_location_id: eventLocation.id,
+            contractor_id: contractor.value,
+          },
+          { transaction: t },
+        );
 
-      await EventLocationContractor.bulkCreate(contractorRecords, {
-        transaction: t,
-      });
+        // Helper to insert class arrays
+        const insertClasses = async (classArray, classType) => {
+          if (!Array.isArray(classArray)) return;
+          for (const cls of classArray) {
+            await ContractorClass.create(
+              {
+                assignment_id: assignment.id,
+                classification_id: cls.value,
+                class_type: classType,
+                start_time: cls.startTime,
+                end_time: cls.endTime,
+              },
+              { transaction: t },
+            );
+          }
+        };
+
+        // 4️⃣ Insert all class types
+        await insertClasses(contractor.classes, "regular");
+        await insertClasses(contractor.inClasses, "in");
+        await insertClasses(contractor.outClasses, "out");
+      }
     }
 
-    // 3. Commit transaction
     await t.commit();
 
     // 4. Fetch full nested structure after commit
@@ -140,13 +206,11 @@ const createEvent = async (req, res) => {
       ],
     });
 
-    res.status(201).json(fullEvent);
+    return res.status(201).json(fullEvent);
   } catch (error) {
-    console.error("createEvent error:", error);
-
-    // Rollback transaction on error
     await t.rollback();
-    res.status(500).json({ error: error.message });
+    console.error("Create Event Error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -227,7 +291,7 @@ const getAllEvents = async (req, res) => {
                   attributes: ["id", "company_name"],
                 },
               ],
-              attributes: ["id", "start_time", "end_time", "contractor_id"],
+              attributes: ["id", "contractor_id"],
             },
           ],
         },
@@ -278,27 +342,16 @@ const getEventById = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Step 1: fetch the event itself
     const event = await Event.findOne({
       where: { id },
-      include: [
-        {
-          model: EventLocation,
-          include: [
-            {
-              model: Location,
-              attributes: ["id", "name"],
-            },
-            {
-              model: EventLocationContractor,
-              include: [
-                {
-                  model: Contractor,
-                  attributes: ["id", "company_name"],
-                },
-              ],
-            },
-          ],
-        },
+      attributes: [
+        "id",
+        "event_name",
+        "project_code",
+        "project_comments",
+        "start_date",
+        "end_date",
       ],
     });
 
@@ -306,7 +359,75 @@ const getEventById = async (req, res) => {
       return res.status(404).json({ error: "Event not found" });
     }
 
-    res.status(200).json(event);
+    // Step 2: fetch event locations + Location
+    const eventLocations = await EventLocation.findAll({
+      where: { event_id: id },
+      include: [
+        {
+          model: Location,
+          attributes: ["id", "name"],
+        },
+      ],
+      attributes: ["id", "event_id", "location_id"],
+    });
+
+    // Step 3: enrich each location with contractors
+    const enrichedEventLocations = await Promise.all(
+      eventLocations.map(async (el) => {
+        const contractors = await EventLocationContractor.findAll({
+          where: { event_location_id: el.id },
+          include: [
+            {
+              model: Contractor,
+              attributes: ["id", "company_name"],
+            },
+          ],
+          attributes: ["id", "event_location_id", "contractor_id"],
+        });
+
+        // Step 4: enrich each contractor with classes + classification
+        const enrichedContractors = await Promise.all(
+          contractors.map(async (c) => {
+            const classes = await ContractorClass.findAll({
+              where: { assignment_id: c.id },
+              attributes: [
+                "id",
+                "assignment_id",
+                "classification_id", // <- keep explicit
+                "class_type",
+                "start_time",
+                "end_time",
+              ],
+              include: [
+                {
+                  model: Classification,
+                  as: "classification",
+                  attributes: ["id", "abbreviation", "description"],
+                },
+              ],
+            });
+
+            return {
+              ...c.toJSON(),
+              classes,
+            };
+          }),
+        );
+
+        return {
+          ...el.toJSON(),
+          contractors: enrichedContractors,
+        };
+      }),
+    );
+
+    // Final output
+    const result = {
+      ...event.toJSON(),
+      locations: enrichedEventLocations,
+    };
+
+    res.status(200).json(result);
   } catch (error) {
     console.error("Error fetching event:", error);
     res.status(500).json({ error: error.message });
@@ -364,6 +485,123 @@ const deleteEvent = async (req, res) => {
 };
 
 // Update Event
+// const updateEvent = async (req, res) => {
+//   const t = await sequelize.transaction();
+
+//   try {
+//     const { id } = req.params;
+//     const {
+//       event_name,
+//       project_code,
+//       project_comments,
+//       start_date,
+//       end_date,
+//       locations,
+//     } = req.body;
+
+//     if (
+//       !event_name ||
+//       !start_date ||
+//       !end_date ||
+//       !project_code ||
+//       !project_comments ||
+//       !Array.isArray(locations)
+//     ) {
+//       return res.status(400).json({ error: "Missing required fields" });
+//     }
+
+//     // 1. Check if event exists
+//     const event = await Event.findByPk(id, { transaction: t });
+//     if (!event) {
+//       return res.status(404).json({ error: "Event not found" });
+//     }
+
+//     // 2. Update Event basic info
+//     await event.update(
+//       { event_name, project_code, project_comments, start_date, end_date },
+//       { transaction: t },
+//     );
+
+//     // 3. Delete old EventLocations and Contractors
+//     const oldEventLocations = await EventLocation.findAll({
+//       where: { event_id: id },
+//       transaction: t,
+//     });
+
+//     const oldLocationIds = oldEventLocations.map((loc) => loc.id);
+
+//     if (oldLocationIds.length) {
+//       await EventLocationContractor.destroy({
+//         where: { event_location_id: oldLocationIds },
+//         transaction: t,
+//       });
+
+//       await EventLocation.destroy({
+//         where: { id: oldLocationIds },
+//         transaction: t,
+//       });
+//     }
+
+//     // 4. Recreate EventLocations and Contractors from new payload
+//     for (const loc of locations) {
+//       const { location_id, contractors } = loc;
+
+//       const eventLocation = await EventLocation.create(
+//         {
+//           event_id: event.id,
+//           location_id,
+//         },
+//         { transaction: t },
+//       );
+
+//       const contractorRecords = contractors.map((contractor) => ({
+//         event_location_id: eventLocation.id,
+//         contractor_id: contractor.contractor_id,
+//         start_time: contractor.start_time,
+//         end_time: contractor.end_time,
+//       }));
+
+//       await EventLocationContractor.bulkCreate(contractorRecords, {
+//         transaction: t,
+//       });
+//     }
+
+//     // 5. Commit transaction
+//     await t.commit();
+
+//     // 6. Fetch full updated structure after commit
+//     const updatedEvent = await Event.findOne({
+//       where: { id: event.id },
+//       include: [
+//         {
+//           model: EventLocation,
+//           include: [
+//             {
+//               model: Location,
+//               attributes: ["id", "name"],
+//             },
+//             {
+//               model: EventLocationContractor,
+//               include: [
+//                 {
+//                   model: Contractor,
+//                   attributes: ["id", "company_name"],
+//                 },
+//               ],
+//             },
+//           ],
+//         },
+//       ],
+//     });
+
+//     res.status(200).json(updatedEvent);
+//   } catch (error) {
+//     console.error("updateEvent error:", error);
+//     await t.rollback();
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
 const updateEvent = async (req, res) => {
   const t = await sequelize.transaction();
 
@@ -378,106 +616,159 @@ const updateEvent = async (req, res) => {
       locations,
     } = req.body;
 
+    // 🔎 Validate required fields
     if (
       !event_name ||
-      !start_date ||
-      !end_date ||
       !project_code ||
       !project_comments ||
+      !start_date ||
+      !end_date ||
       !Array.isArray(locations)
     ) {
+      await t.rollback();
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    // 1. Check if event exists
-    const event = await Event.findByPk(id, { transaction: t });
-    if (!event) {
+    // 1️⃣ Update Event basic info
+    const [updated] = await Event.update(
+      { event_name, project_code, project_comments, start_date, end_date },
+      { where: { id }, transaction: t },
+    );
+
+    if (!updated) {
+      await t.rollback();
       return res.status(404).json({ error: "Event not found" });
     }
 
-    // 2. Update Event basic info
-    await event.update(
-      { event_name, project_code, project_comments, start_date, end_date },
-      { transaction: t },
-    );
-
-    // 3. Delete old EventLocations and Contractors
-    const oldEventLocations = await EventLocation.findAll({
+    // 2️⃣ Fetch existing event locations (with contractors + classes)
+    const existingLocations = await EventLocation.findAll({
       where: { event_id: id },
+      include: {
+        model: EventLocationContractor,
+        include: [
+          {
+            model: ContractorClass,
+            as: "classes", // ✅ must match alias
+          },
+        ],
+      },
       transaction: t,
     });
 
-    const oldLocationIds = oldEventLocations.map((loc) => loc.id);
+    const locationMap = new Map(
+      existingLocations.map((l) => [l.location_id, l]),
+    );
+    const seenLocationIds = new Set();
 
-    if (oldLocationIds.length) {
-      await EventLocationContractor.destroy({
-        where: { event_location_id: oldLocationIds },
-        transaction: t,
-      });
-
-      await EventLocation.destroy({
-        where: { id: oldLocationIds },
-        transaction: t,
-      });
-    }
-
-    // 4. Recreate EventLocations and Contractors from new payload
+    // 3️⃣ Process each location in payload
     for (const loc of locations) {
-      const { location_id, contractors } = loc;
+      let eventLocation = locationMap.get(loc.location_id);
 
-      const eventLocation = await EventLocation.create(
-        {
-          event_id: event.id,
-          location_id,
-        },
-        { transaction: t },
+      if (!eventLocation) {
+        eventLocation = await EventLocation.create(
+          { event_id: id, location_id: loc.location_id },
+          { transaction: t },
+        );
+      }
+      seenLocationIds.add(eventLocation.location_id);
+
+      // Contractors
+      const existingContractors = eventLocation.EventLocationContractors || [];
+      const contractorMap = new Map(
+        existingContractors.map((c) => [c.contractor_id, c]),
       );
+      const seenContractorIds = new Set();
 
-      const contractorRecords = contractors.map((contractor) => ({
-        event_location_id: eventLocation.id,
-        contractor_id: contractor.contractor_id,
-        start_time: contractor.start_time,
-        end_time: contractor.end_time,
-      }));
+      for (const contractor of loc.contractors || []) {
+        let eventContractor = contractorMap.get(contractor.value);
 
-      await EventLocationContractor.bulkCreate(contractorRecords, {
-        transaction: t,
-      });
+        if (!eventContractor) {
+          eventContractor = await EventLocationContractor.create(
+            {
+              event_location_id: eventLocation.id,
+              contractor_id: contractor.value,
+            },
+            { transaction: t },
+          );
+        }
+        seenContractorIds.add(eventContractor.contractor_id);
+
+        // Classes (normal, inClasses, outClasses)
+        const classTypes = [
+          { arr: contractor.classes || [], type: "regular" },
+          { arr: contractor.inClasses || [], type: "in" },
+          { arr: contractor.outClasses || [], type: "out" },
+        ];
+
+        const existingClasses = eventContractor.classes || [];
+        const classMap = new Map(
+          existingClasses.map((cl) => [
+            cl.classification_id + "_" + cl.class_type,
+            cl,
+          ]),
+        );
+        const seenClassIds = new Set();
+
+        for (const { arr, type } of classTypes) {
+          for (const cl of arr) {
+            const key = cl.value + "_" + type;
+            let eventClass = classMap.get(key);
+
+            if (!eventClass) {
+              await ContractorClass.create(
+                {
+                  assignment_id: eventContractor.id,
+                  classification_id: cl.value,
+                  class_type: type,
+                  start_time: cl.startTime,
+                  end_time: cl.endTime,
+                },
+                { transaction: t },
+              );
+            } else {
+              await eventClass.update(
+                { start_time: cl.startTime, end_time: cl.endTime },
+                { transaction: t },
+              );
+            }
+            seenClassIds.add(key);
+          }
+        }
+
+        // ❌ Delete removed classes
+        for (const exClass of existingClasses) {
+          const key = exClass.classification_id + "_" + exClass.class_type;
+          if (!seenClassIds.has(key)) {
+            await exClass.destroy({ transaction: t });
+          }
+        }
+      }
+
+      // ❌ Delete removed contractors
+      for (const exContractor of existingContractors) {
+        if (!seenContractorIds.has(exContractor.contractor_id)) {
+          await exContractor.destroy({ transaction: t });
+        }
+      }
     }
 
-    // 5. Commit transaction
+    // ❌ Delete removed locations
+    for (const exLoc of existingLocations) {
+      if (!seenLocationIds.has(exLoc.location_id)) {
+        await exLoc.destroy({ transaction: t });
+      }
+    }
+
     await t.commit();
-
-    // 6. Fetch full updated structure after commit
-    const updatedEvent = await Event.findOne({
-      where: { id: event.id },
-      include: [
-        {
-          model: EventLocation,
-          include: [
-            {
-              model: Location,
-              attributes: ["id", "name"],
-            },
-            {
-              model: EventLocationContractor,
-              include: [
-                {
-                  model: Contractor,
-                  attributes: ["id", "company_name"],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    });
-
-    res.status(200).json(updatedEvent);
+    return res
+      .status(200)
+      .json({ success: true, message: "Event updated successfully" });
   } catch (error) {
-    console.error("updateEvent error:", error);
     await t.rollback();
-    res.status(500).json({ error: error.message });
+    console.error("Error updating event:", error);
+    return res
+      .status(500)
+      .json({ error: "Internal server error", details: error.message });
   }
 };
 

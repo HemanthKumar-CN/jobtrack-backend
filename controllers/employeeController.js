@@ -475,8 +475,6 @@ exports.getNotScheduledEmployees = async (req, res) => {
         return true;
       });
 
-    console.log(employees, "Result of not scheduled employees");
-
     res.status(200).json({ success: true, data: result });
   } catch (error) {
     console.error("Error fetching employees with capacity:", error);

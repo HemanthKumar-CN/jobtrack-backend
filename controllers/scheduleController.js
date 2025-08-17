@@ -16,6 +16,7 @@ const {
   TimeOffReason,
   TimeOff,
   RecurringBlockedTime,
+  ContractorClass,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -1024,12 +1025,30 @@ const eventList = async (req, res) => {
             },
             {
               model: EventLocationContractor,
-              attributes: ["id", "start_time"], // <-- important
+              attributes: ["id"], // <-- important
               include: [
                 {
                   model: Contractor,
                   attributes: ["id", "first_name", "last_name", "company_name"],
                 },
+                // {
+                // model: ContractorClass,
+                // as: "classes",
+                // attributes: [
+                //   "id",
+                //   "classification_id",
+                //   "class_type",
+                //   "start_time",
+                //   "end_time",
+                // ],
+                // include: [
+                //   {
+                //     model: Classification,
+                //     as: "classification",
+                //     attributes: ["id", "abbreviation", "description"],
+                //   },
+                // ],
+                // },
               ],
             },
           ],
@@ -1039,7 +1058,48 @@ const eventList = async (req, res) => {
       // raw: true,
     });
 
-    // Transform data for frontend select dropdowns
+    // 2️⃣ Gather all EventLocationContractor IDs
+    const contractorAssignmentIds = [];
+    events.forEach((event) => {
+      event.EventLocations.forEach((loc) => {
+        loc.EventLocationContractors.forEach((elc) => {
+          contractorAssignmentIds.push(elc.id);
+        });
+      });
+    });
+
+    // 3️⃣ Fetch all ContractorClasses for these assignments
+    const allClasses = await ContractorClass.findAll({
+      where: { assignment_id: contractorAssignmentIds },
+      attributes: [
+        "id",
+        "assignment_id",
+        "classification_id",
+        "class_type",
+        "start_time",
+        "end_time",
+      ],
+      include: [
+        {
+          model: Classification,
+          as: "classification",
+          attributes: ["id", "abbreviation", "description"],
+        },
+      ],
+    });
+
+    // 4️⃣ Group classes by assignment_id for easy lookup
+    const classesByAssignment = {};
+    allClasses.forEach((cls) => {
+      if (!classesByAssignment[cls.assignment_id]) {
+        classesByAssignment[cls.assignment_id] = [];
+      }
+      classesByAssignment[cls.assignment_id].push(cls);
+    });
+
+    console.log(events, "Fetched events for dropdown");
+
+    // 5️⃣ Format the data for frontend
     const formatted = events.map((event) => ({
       id: event.id,
       event_name: event.event_name,
@@ -1050,8 +1110,21 @@ const eventList = async (req, res) => {
           id: elc.Contractor?.id,
           name: `${elc.Contractor?.first_name} ${elc.Contractor?.last_name}`,
           company_name: elc.Contractor?.company_name,
-          event_location_contractor_id: elc.id, // <-- include this junction table id
-          start_time: elc?.start_time,
+          event_location_contractor_id: elc.id,
+          classes: (classesByAssignment[elc.id] || []).map((cls) => ({
+            id: cls.id,
+            classification_id: cls.classification_id,
+            class_type: cls.class_type,
+            start_time: cls.start_time,
+            end_time: cls.end_time,
+            classification: cls.classification
+              ? {
+                  id: cls.classification.id,
+                  abbreviation: cls.classification.abbreviation,
+                  description: cls.classification.description,
+                }
+              : null,
+          })),
         })),
       })),
     }));

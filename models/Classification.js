@@ -26,5 +26,12 @@ module.exports = (sequelize, DataTypes) => {
     },
   );
 
+  Classification.associate = (models) => {
+    Classification.hasMany(models.ContractorClass, {
+      foreignKey: "classification_id",
+      as: "classes",
+    });
+  };
+
   return Classification;
 };

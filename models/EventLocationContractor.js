@@ -17,14 +17,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
-      start_time: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
-      end_time: {
-        type: DataTypes.DATE,
-        allowNull: false,
-      },
     },
     {
       tableName: "event_location_contractors",
@@ -39,6 +31,10 @@ module.exports = (sequelize, DataTypes) => {
     });
     EventLocationContractor.belongsTo(models.Contractor, {
       foreignKey: "contractor_id",
+    });
+    EventLocationContractor.hasMany(models.ContractorClass, {
+      foreignKey: "assignment_id",
+      as: "classes",
     });
   };
 
