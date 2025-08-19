@@ -28,6 +28,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         unique: true,
       },
+      status: {
+        type: DataTypes.ENUM("active", "inactive"),
+        allowNull: false,
+        defaultValue: "active",
+      },
     },
     {
       tableName: "locations",
