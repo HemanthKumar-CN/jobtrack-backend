@@ -296,32 +296,6 @@ exports.getAllRestrictions = async (req, res) => {
   }
 };
 
-// exports.getNotScheduledEmployees = async (req, res) => {
-//   try {
-//     const employees = await Employee.findAll({
-//       attributes: ["id", "user_id", "phone"],
-//       include: [
-//         {
-//           model: User,
-//           attributes: ["first_name", "last_name"],
-//           required: true,
-//         },
-//         {
-//           model: Restriction,
-//           as: "restrictions", // ✅ MUST MATCH EMPLOYEE ASSOCIATION
-//           attributes: ["id", "description"],
-//           through: { attributes: [] }, // hides junction table
-//         },
-//       ],
-//     });
-
-//     res.status(200).json({ success: true, data: employees });
-//   } catch (error) {
-//     console.error("Error fetching employees with restrictions:", error);
-//     res.status(500).json({ success: false, message: "Server error" });
-//   }
-// };
-
 exports.getNotScheduledEmployees = async (req, res) => {
   const {
     date,

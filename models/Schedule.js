@@ -106,11 +106,20 @@ module.exports = (sequelize, DataTypes) => {
         },
       },
 
-      classification_id: {
+      // classification_id: {
+      //   type: DataTypes.INTEGER,
+      //   allowNull: true,
+      //   references: {
+      //     model: "classifications",
+      //     key: "id",
+      //   },
+      // },
+
+      contractor_class_id: {
         type: DataTypes.INTEGER,
         allowNull: true,
         references: {
-          model: "classifications",
+          model: "contractor_classes",
           key: "id",
         },
       },
@@ -162,8 +171,8 @@ module.exports = (sequelize, DataTypes) => {
   Schedule.associate = (models) => {
     Schedule.belongsTo(models.Employee, { foreignKey: "employee_id" });
     Schedule.belongsTo(models.Event, { foreignKey: "task_event_id" });
-    Schedule.belongsTo(models.Classification, {
-      foreignKey: "classification_id",
+    Schedule.belongsTo(models.ContractorClass, {
+      foreignKey: "contractor_class_id",
     });
     Schedule.belongsTo(models.EventLocationContractor, {
       foreignKey: "event_location_contractor_id",

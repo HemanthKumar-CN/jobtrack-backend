@@ -457,7 +457,7 @@ const createBulkSchedule = async (req, res) => {
         employee_id: parseInt(employeeId),
         task_event_id: eventId,
         event_location_contractor_id: locationContractorId || null,
-        classification_id: classificationId || null,
+        contractor_class_id: classificationId || null,
         start_time: new Date(startTime), // UTC
         comments: comments || null,
         status: "pending",
@@ -620,9 +620,20 @@ const getSchedules = async (req, res) => {
             },
           ],
         },
+        // {
+        //   model: Classification,
+        //   attributes: ["abbreviation", "description", "id"],
+        // },
         {
-          model: Classification,
-          attributes: ["abbreviation", "description", "id"],
+          model: ContractorClass,
+          attributes: ["id", "class_type", "start_time", "end_time"],
+          include: [
+            {
+              model: Classification,
+              as: "classification", // because you defined alias in model
+              attributes: ["id", "abbreviation", "description"],
+            },
+          ],
         },
       ],
       // order: [["start_time", "ASC"]],
@@ -636,8 +647,12 @@ const getSchedules = async (req, res) => {
       const restriction = employee.restrictions || null;
       const event = schedule.Event || {};
       const contractor = schedule.EventLocationContractor || {};
-      const classification = schedule.Classification || {};
+      // const classification = schedule.Classification || {};
+      const contractorClass = schedule.ContractorClass || {};
+      const classification = contractorClass.classification || {};
       const EventLocationContractor = contractor;
+
+      console.log(contractorClass, "????");
 
       // 🔸 Capacity logic copied from other controller
       let capacity = "Available";
@@ -680,7 +695,11 @@ const getSchedules = async (req, res) => {
           id: EventLocationContractor.id,
           name: `${EventLocationContractor?.EventLocation?.Location?.name} - ${EventLocationContractor?.Contractor?.first_name} ${EventLocationContractor?.Contractor?.last_name}`,
         },
-        class: classification,
+        class: {
+          ...classification,
+          class_type: contractorClass.class_type,
+          contractor_class_id: contractorClass.id,
+        },
         start_time: schedule.start_time,
         comments: schedule.comments || "",
       };
