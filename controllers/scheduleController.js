@@ -743,11 +743,19 @@ const getLatestConfirmedAssignments = async (req, res) => {
           ],
         },
         {
-          model: Classification,
-          attributes: ["abbreviation", "id"],
+          model: ContractorClass,
+          attributes: ["id", "class_type", "start_time", "end_time"],
+          include: [
+            {
+              model: Classification,
+              as: "classification", // because you defined alias in model
+              attributes: ["id", "abbreviation", "description"],
+            },
+          ],
         },
       ],
       order: [["start_time", "DESC"]],
+      // raw: true,
     });
 
     console.log(assignments, "Latest confirmed assignments");
@@ -765,7 +773,9 @@ const getLatestConfirmedAssignments = async (req, res) => {
         const contractor = assignment.EventLocationContractor?.Contractor;
         const location =
           assignment.EventLocationContractor?.EventLocation?.Location;
-        const classification = assignment.Classification;
+        // const classification = assignment.Classification;
+        const contractorClass = assignment.ContractorClass || {};
+        const classification = contractorClass.classification || {};
 
         grouped[assignment.employee_id] = {
           event_name: assignment.Event?.event_name,
@@ -776,8 +786,9 @@ const getLatestConfirmedAssignments = async (req, res) => {
             assignment.event_location_contractor_id || "",
           contractor: contractor?.first_name || contractor?.company_name || "",
           start_time: assignment.start_time,
-          classification_id: assignment.classification_id || null,
+          classification_id: assignment.ContractorClass.id || null,
           classification_name: classification?.abbreviation || null,
+          class_type: contractorClass.class_type || null,
           comments: assignment.comments || "",
         };
       }
