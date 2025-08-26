@@ -43,6 +43,7 @@ const getLocations = async (req, res) => {
       search = "",
       sortField = "id",
       sortOrder = "ASC",
+      status = "",
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -51,6 +52,10 @@ const getLocations = async (req, res) => {
           name: { [Op.iLike]: `%${search}%` }, // Case-insensitive search
         }
       : {};
+
+    if (status && ["active", "inactive"].includes(status)) {
+      whereClause.status = status;
+    }
 
     // Allow only specific fields to sort by
     const allowedSortFields = ["name", "city", "state", "id"];

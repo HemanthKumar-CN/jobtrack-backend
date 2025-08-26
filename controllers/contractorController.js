@@ -10,6 +10,7 @@ const getAllContractors = async (req, res) => {
       search = "",
       sortField = "id",
       sortOrder = "ASC",
+      status = "",
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -25,7 +26,9 @@ const getAllContractors = async (req, res) => {
         }
       : {};
 
-    console.log(req.query, "????????");
+    if (status && ["active", "inactive"].includes(status)) {
+      whereClause.status = status;
+    }
 
     const contractors = await Contractor.findAll({
       where: whereClause,
