@@ -44,6 +44,11 @@ const getLocations = async (req, res) => {
       sortField = "id",
       sortOrder = "ASC",
       status = "",
+      location = "",
+      address = "",
+      city = "",
+      state = "",
+      zip = "",
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -55,6 +60,24 @@ const getLocations = async (req, res) => {
 
     if (status && ["active", "inactive"].includes(status)) {
       whereClause.status = status;
+    }
+    if (location) {
+      whereClause.name = { [Op.iLike]: `%${location}%` };
+    }
+    if (address) {
+      whereClause[Op.or] = [
+        { address_1: { [Op.iLike]: `%${address}%` } },
+        { address_2: { [Op.iLike]: `%${address}%` } },
+      ];
+    }
+    if (city) {
+      whereClause.city = { [Op.iLike]: `%${city}%` };
+    }
+    if (state) {
+      whereClause.state = { [Op.iLike]: `%${state}%` };
+    }
+    if (zip) {
+      whereClause.postal_code = { [Op.iLike]: `%${zip}%` };
     }
 
     // Allow only specific fields to sort by

@@ -3,7 +3,13 @@ const { Restriction } = require("../models");
 
 const getAllRestrictions = async (req, res) => {
   try {
-    const { status = "all", search = "" } = req.query;
+    const {
+      status = "all",
+      search = "",
+      restrictionName = "",
+      sortField = "description",
+      sortOrder = "asc",
+    } = req.query;
 
     // 🔍 Build dynamic where condition
     let where = {};
@@ -20,9 +26,25 @@ const getAllRestrictions = async (req, res) => {
       };
     }
 
+    // ✅ Safe sortField check (prevent SQL injection)
+    const validFields = [
+      "id",
+      "description",
+      "status",
+      "created_at",
+      "updated_at",
+    ];
+    const orderField = validFields.includes(sortField)
+      ? sortField
+      : "description";
+
+    const orderDirection = ["asc", "desc"].includes(sortOrder.toLowerCase())
+      ? sortOrder.toUpperCase()
+      : "ASC";
+
     const restrictions = await Restriction.findAll({
       where,
-      order: [["description", "ASC"]],
+      order: [[orderField, orderDirection]],
     });
 
     res.status(200).json(restrictions);

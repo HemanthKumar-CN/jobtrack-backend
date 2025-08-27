@@ -255,7 +255,7 @@ const getAllEvents = async (req, res) => {
     }
 
     // Default sorting
-    let order = [["start_date", "ASC"]];
+    let order = [["start_date", "DESC"]];
 
     // Sorting logic (note: nested sorting is complex; limit to top-level fields)
     if (sortField && sortOrder) {

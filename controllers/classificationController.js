@@ -29,6 +29,29 @@ const getAllClassifications = async (req, res) => {
   }
 };
 
+const updateClassification = async (req, res) => {
+  const { id } = req.params;
+  const { description, abbreviation, status } = req.body;
+
+  try {
+    const classification = await Classification.findByPk(id);
+    if (!classification) {
+      return res.status(404).json({ message: "Classification not found" });
+    }
+
+    classification.description = description || classification.description;
+    classification.abbreviation = abbreviation || classification.abbreviation;
+    classification.status = status || classification.status;
+
+    await classification.save();
+    res.status(200).json(classification);
+  } catch (error) {
+    console.error("Error updating classification:", error);
+    res.status(500).json({ message: "Failed to update classification" });
+  }
+};
+
 module.exports = {
   getAllClassifications,
+  updateClassification,
 };

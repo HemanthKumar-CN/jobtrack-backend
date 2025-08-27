@@ -11,6 +11,10 @@ const getAllContractors = async (req, res) => {
       sortField = "id",
       sortOrder = "ASC",
       status = "",
+      companyName = "",
+      city = "",
+      state = "",
+      phone = "",
     } = req.query;
     const offset = (page - 1) * limit;
 
@@ -28,6 +32,19 @@ const getAllContractors = async (req, res) => {
 
     if (status && ["active", "inactive"].includes(status)) {
       whereClause.status = status;
+    }
+
+    if (companyName) {
+      whereClause.company_name = { [Op.iLike]: `%${companyName}%` };
+    }
+    if (city) {
+      whereClause.city = { [Op.iLike]: `%${city}%` };
+    }
+    if (state) {
+      whereClause.state = { [Op.iLike]: `%${state}%` };
+    }
+    if (phone) {
+      whereClause.phone = { [Op.iLike]: `%${phone}%` };
     }
 
     const contractors = await Contractor.findAll({
@@ -127,8 +144,8 @@ const updateContractorById = async (req, res) => {
       last_name,
       company_name,
       email,
-      address1,
-      address2,
+      address_1,
+      address_2,
       city,
       state,
       zip,
@@ -141,16 +158,16 @@ const updateContractorById = async (req, res) => {
     }
 
     // Update fields only if new values are provided
-    if (first_name) contractor.first_name = first_name;
-    if (last_name) contractor.last_name = last_name;
-    if (company_name) contractor.company_name = company_name;
-    if (email) contractor.email = email;
-    if (address1) contractor.address1 = address1;
-    if (address2) contractor.address2 = address2;
-    if (city) contractor.city = city;
-    if (state) contractor.state = state;
-    if (zip) contractor.zip = zip;
-    if (phone) contractor.phone = phone;
+    contractor.first_name = first_name;
+    contractor.last_name = last_name;
+    contractor.company_name = company_name;
+    contractor.email = email;
+    contractor.address_1 = address_1;
+    contractor.address_2 = address_2;
+    contractor.city = city;
+    contractor.state = state;
+    contractor.zip = zip;
+    contractor.phone = phone;
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 

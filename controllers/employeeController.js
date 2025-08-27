@@ -398,6 +398,18 @@ exports.getNotScheduledEmployees = async (req, res) => {
     };
     const dayLetter = dayLetterMap[inputDate.day()];
 
+    let restrictionIds = [];
+    if (restriction) {
+      try {
+        // handle `[6,4]` (from querystring) → [6,4]
+        restrictionIds = Array.isArray(restriction)
+          ? restriction.map((id) => parseInt(id))
+          : JSON.parse(restriction); // in case it's a JSON string "[6,4]"
+      } catch {
+        restrictionIds = [parseInt(restriction)];
+      }
+    }
+
     const result = employees
       .map((emp) => {
         let capacity = "Available";
@@ -440,11 +452,18 @@ exports.getNotScheduledEmployees = async (req, res) => {
         // ✅ Filter by capacity (if passed)
         if (capacity && emp.capacity !== capacity) return false;
 
-        if (restriction) {
-          const hasRestriction = emp.restrictions.some(
-            (r) => r.id === parseInt(restriction),
+        // if (restriction) {
+        //   const hasRestriction = emp.restrictions.some(
+        //     (r) => r.id === parseInt(restriction),
+        //   );
+        //   if (!hasRestriction) return false;
+        // }
+        if (restrictionIds.length > 0) {
+          const empRestrictionIds = emp.restrictions.map((r) => r.id);
+          const hasMatch = empRestrictionIds.some((id) =>
+            restrictionIds.includes(id),
           );
-          if (!hasRestriction) return false;
+          if (!hasMatch) return false;
         }
         return true;
       });
