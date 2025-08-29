@@ -18,6 +18,14 @@ module.exports = (sequelize, DataTypes) => {
           key: "id",
         },
       },
+      active_date: {
+        type: DataTypes.DATEONLY, // Use DATEONLY if you only care about the date
+        allowNull: true, // Assuming these dates are optional
+      },
+      inactive_date: {
+        type: DataTypes.DATEONLY, // Use DATEONLY if you only care about the date
+        allowNull: true, // Assuming these dates are optional
+      },
     },
     {
       tableName: "employee_restrictions",

@@ -29,7 +29,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Restriction.associate = (models) => {
     Restriction.belongsToMany(models.Employee, {
-      through: "employee_restrictions",
+      through: models.EmployeeRestriction,
       foreignKey: "restriction_id",
       otherKey: "employee_id",
       as: "employees", // optional but good practice

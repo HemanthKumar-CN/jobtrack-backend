@@ -6,6 +6,7 @@ const {
   Restriction,
   TimeOff,
   RecurringBlockedTime,
+  EmployeeRestriction,
 } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -13,98 +14,6 @@ const sequelize = require("../config/database");
 const { Op, Sequelize } = require("sequelize");
 const moment = require("moment");
 const sendWelcomeEmail = require("../utils/mailer");
-
-// exports.createEmployee = async (req, res) => {
-//   const transaction = await sequelize.transaction(); // Start transaction
-
-//   try {
-//     const {
-//       first_name,
-//       last_name,
-//       email,
-//       role_id, // User role
-//       address_1,
-//       address_2,
-//       status,
-//       city,
-//       state,
-//       postal_code,
-//       phone,
-//       type,
-//       date_of_birth,
-//       hire_date,
-//       emergency_contact_name,
-//       emergency_contact_phone,
-//     } = req.body;
-
-//     const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Store relative path
-
-//     console.log(req.body, "=========", image_url);
-
-//     // ✅ Check if email already exists
-//     const existingUser = await User.findOne({ where: { email }, transaction });
-//     if (existingUser) {
-//       await transaction.rollback(); // Rollback if user exists
-//       return res.status(400).json({ message: "Email already in use" });
-//     }
-
-//     // ✅ Generate a secure temporary password
-//     const tempPassword = crypto.randomBytes(6).toString("hex"); // Example: "a3f8e1b2c4d5"
-//     const hashedPassword = await bcrypt.hash(tempPassword, 10); // Hash password
-
-//     console.log(image_url, "-===========");
-//     // ✅ Create User First
-//     const newUser = await User.create(
-//       {
-//         first_name,
-//         last_name,
-//         email,
-//         password: hashedPassword, // Store hashed password
-//         role_id,
-//         image_url,
-//       },
-//       { transaction },
-//     );
-
-//     // ✅ Create Employee and link with the newly created User
-//     const newEmployee = await Employee.create(
-//       {
-//         user_id: newUser.id,
-//         address_1,
-//         address_2,
-//         status,
-//         city,
-//         state,
-//         postal_code,
-//         phone,
-//         type,
-//         date_of_birth,
-//         hire_date,
-//         emergency_contact_name,
-//         emergency_contact_phone,
-//       },
-//       { transaction },
-//     );
-
-//     // ✅ Commit transaction if everything is successful
-//     await transaction.commit();
-
-//     await sendWelcomeEmail(email, first_name, tempPassword);
-
-//     // TODO: Send this temp password via email to the user (implement email service)
-
-//     res.status(201).json({
-//       message: "Employee created successfully",
-//       employee: newEmployee,
-//       user: newUser,
-//       tempPassword, // Remove this in production
-//     });
-//   } catch (error) {
-//     console.error("Error creating employee:", error);
-//     await transaction.rollback(); // ❌ Rollback on error
-//     res.status(500).json({ message: "Internal Server Error" });
-//   }
-// };
 
 exports.createEmployee = async (req, res) => {
   const transaction = await Employee.sequelize.transaction();
@@ -180,7 +89,7 @@ exports.createEmployee = async (req, res) => {
       { transaction },
     );
 
-    console.log(newUser, "=== New User created..bro");
+    // console.log(newUser, "=== New User created..bro");
 
     const newEmployee = await Employee.create(
       {
@@ -208,15 +117,51 @@ exports.createEmployee = async (req, res) => {
       { transaction },
     );
 
-    console.log(newEmployee, "New employee created**************");
+    // console.log(newEmployee, "New employee created**************");
 
     // Store employee_restrictions
     if (
       Array.isArray(selectedRestrictions) &&
       selectedRestrictions.length > 0
     ) {
-      const restrictionIds = selectedRestrictions.map((r) => r.id);
-      await newEmployee.setRestrictions(restrictionIds, { transaction });
+      // const restrictionIds = selectedRestrictions.map((r) => r.id);
+      // await newEmployee.setRestrictions(restrictionIds, { transaction });
+
+      // ✅ Modify this block
+      // Map restrictions to include activeDate and inactiveDate for the junction table
+      const restrictionAssociations = selectedRestrictions.map((r) => ({
+        restriction_id: r.id,
+        // Convert Date objects to ISO string or null for DATEONLY type
+        active_date: r.active_date
+          ? new Date(r.active_date).toISOString().split("T")[0]
+          : null,
+        inactive_date: r.inactive_date
+          ? new Date(r.inactive_date).toISOString().split("T")[0]
+          : null,
+      }));
+
+      console.log(restrictionAssociations, "+++===+++ restrictionAssociations");
+
+      // Use `addRestrictions` with `through` option for the additional fields
+      // `setRestrictions` replaces all existing associations.
+      // `addRestrictions` adds new ones without removing old, but you need to manage existing.
+      // For creating, `setRestrictions` is often used to ensure fresh state.
+      await newEmployee.setRestrictions(
+        [], // Clear existing
+        { transaction },
+      );
+      for (const association of restrictionAssociations) {
+        console.log(
+          `Attempting to add restriction ${association.restriction_id} with active_date: ${association.active_date}, inactive_date: ${association.inactive_date}`,
+        );
+        await newEmployee.addRestriction(association.restriction_id, {
+          through: {
+            active_date: association.active_date,
+            inactive_date: association.inactive_date,
+          },
+          transaction,
+        });
+      }
     }
 
     console.log("Stored employee restrictions...(((********");
@@ -224,6 +169,15 @@ exports.createEmployee = async (req, res) => {
     // Store recurring blocked times
     for (const block of recurringTimes) {
       const { days, startDate, endDate, startTime, endTime } = block;
+
+      // Basic validation for the block itself
+      if (!Array.isArray(days) || days.length === 0) {
+        console.warn(
+          "Skipping recurring time block due to missing or invalid days:",
+          block,
+        );
+        continue; // Skip to the next block
+      }
 
       for (const day of days) {
         await RecurringBlockedTime.create(
@@ -240,16 +194,33 @@ exports.createEmployee = async (req, res) => {
       }
     }
 
-    // Store time offs
     for (const timeOff of timeOffs) {
+      // Add validation here
+      if (!timeOff.reason_id || isNaN(parseInt(timeOff.reason_id))) {
+        // Optionally, skip this timeOff or return an error
+        console.warn("Skipping timeOff due to invalid reason_id:", timeOff);
+        continue; // Skip to the next timeOff
+        // Or, you could throw an error:
+        // throw new Error("Invalid reason_id provided for time off.");
+      }
+
+      // Ensure date and time fields are not empty or invalid
+      // If startDate, endDate, startTime, endTime can be optional,
+      // you'll need to handle potential 'Invalid date' or empty strings
+      // For now, let's just make sure reason_id is valid.
+
       await TimeOff.create(
         {
           employee_id: newEmployee.id,
-          reason_id: timeOff.reason_id,
-          start_date: timeOff.startDate,
-          end_date: timeOff.endDate,
-          start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),
-          end_time: new Date(timeOff.endTime).toTimeString().slice(0, 5),
+          reason_id: parseInt(timeOff.reason_id), // Ensure it's an integer
+          start_date: timeOff.startDate || null, // Allow null if optional
+          end_date: timeOff.endDate || null, // Allow null if optional
+          start_time: timeOff.startTime
+            ? new Date(timeOff.startTime).toTimeString().slice(0, 5)
+            : null,
+          end_time: timeOff.endTime
+            ? new Date(timeOff.endTime).toTimeString().slice(0, 5)
+            : null,
         },
         { transaction },
       );
@@ -371,7 +342,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           model: Restriction,
           as: "restrictions",
           attributes: ["id", "description"],
-          through: { attributes: [] },
+          through: { attributes: ["active_date", "inactive_date"] },
         },
         {
           model: RecurringBlockedTime,
@@ -998,7 +969,9 @@ exports.getEmployeeById = async (req, res) => {
         {
           model: Restriction,
           as: "restrictions", // ⬅️ Make sure this matches your association alias
-          through: { attributes: [] }, // remove join table data
+          through: {
+            attributes: ["active_date", "inactive_date"], // <--- FIX IS HERE!
+          }, // remove join table data
         },
         {
           model: RecurringBlockedTime,
@@ -1079,6 +1052,192 @@ exports.updatePersonalInfo = async (req, res) => {
   }
 };
 
+// exports.updateEmployee = async (req, res) => {
+//   const transaction = await sequelize.transaction();
+
+//   try {
+//     const { id } = req.params;
+//     const {
+//       firstName,
+//       lastName,
+//       email,
+//       address1,
+//       address2,
+//       city,
+//       state,
+//       zip,
+//       homePhone,
+//       mobilePhone,
+//       birthdate,
+//       status,
+//       comments,
+//       SSN,
+//       SN,
+//       numberId,
+//       type,
+//       inactive_reason,
+//       FDC,
+//       GES,
+//       DrvLic,
+//       four,
+//     } = req.body;
+
+//     // Parse complex FormData fields
+//     let selectedRestrictions = [];
+//     let recurringTimes = [];
+//     let timeOffs = [];
+
+//     try {
+//       if (req.body.selectedRestrictions) {
+//         selectedRestrictions = JSON.parse(req.body.selectedRestrictions);
+//       }
+//       if (req.body.recurringTimes) {
+//         recurringTimes = JSON.parse(req.body.recurringTimes);
+//       }
+//       if (req.body.timeOffs) {
+//         timeOffs = JSON.parse(req.body.timeOffs);
+//       }
+//     } catch (parseErr) {
+//       await transaction.rollback();
+//       return res
+//         .status(400)
+//         .json({ message: "Invalid JSON fields in request" });
+//     }
+
+//     const employee = await Employee.findByPk(id, { transaction });
+//     if (!employee) {
+//       await transaction.rollback();
+//       return res.status(404).json({ message: "Employee not found" });
+//     }
+
+//     const user = await User.findByPk(employee.user_id, { transaction });
+//     if (!user) {
+//       await transaction.rollback();
+//       return res.status(404).json({ message: "User not found" });
+//     }
+
+//     console.log(
+//       email,
+//       user.email,
+//       "=== User found for update",
+//       email && email !== user.email,
+//     );
+//     // Check if email changed
+//     if (email && email !== user.email) {
+//       const existingUser = await User.findOne({
+//         where: { email },
+//         transaction,
+//       });
+//       if (existingUser) {
+//         await transaction.rollback();
+//         return res.status(400).json({ message: "Email already in use" });
+//       }
+//     }
+
+//     const image_url = req.file
+//       ? `/uploads/${req.file.filename}`
+//       : user.image_url;
+
+//     // Update User
+//     await user.update(
+//       {
+//         first_name: firstName,
+//         last_name: lastName,
+//         email,
+//         role_id: 3,
+//         image_url,
+//       },
+//       { transaction },
+//     );
+
+//     // Update Employee
+//     await employee.update(
+//       {
+//         address_1: address1,
+//         address_2: address2,
+//         city,
+//         state,
+//         postal_code: zip,
+//         phone: homePhone,
+//         mobile_phone: mobilePhone,
+//         date_of_birth: birthdate,
+//         status,
+//         comments,
+//         ssn: SSN,
+//         snf: SN,
+//         number_id: numberId,
+//         type,
+//         inactive_reason,
+//         fdc: FDC,
+//         ges: GES,
+//         drv_lic: DrvLic,
+//         four,
+//       },
+//       { transaction },
+//     );
+
+//     // 🔄 Update Restrictions
+//     if (Array.isArray(selectedRestrictions)) {
+//       const restrictionIds = selectedRestrictions.map((r) => r.id);
+//       await employee.setRestrictions(restrictionIds, { transaction });
+//     }
+
+//     // 🔁 Update Recurring Blocked Times
+//     await RecurringBlockedTime.destroy({
+//       where: { employee_id: id },
+//       transaction,
+//     });
+//     for (const block of recurringTimes) {
+//       const { days, startDate, endDate, startTime, endTime } = block;
+//       for (const day of days) {
+//         await RecurringBlockedTime.create(
+//           {
+//             employee_id: id,
+//             day_of_week: day,
+//             start_date: startDate,
+//             end_date: endDate,
+//             start_time: new Date(startTime).toTimeString().slice(0, 5),
+//             end_time: new Date(endTime).toTimeString().slice(0, 5),
+//           },
+//           { transaction },
+//         );
+//       }
+//     }
+
+//     // 🔁 Update Time Offs
+//     await TimeOff.destroy({ where: { employee_id: id }, transaction });
+//     for (const timeOff of timeOffs) {
+//       await TimeOff.create(
+//         {
+//           employee_id: id,
+//           reason_id: timeOff.reason_id,
+//           start_date: timeOff.startDate,
+//           end_date: timeOff.endDate,
+//           start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),
+//           end_time: new Date(timeOff.endTime).toTimeString().slice(0, 5),
+//         },
+//         { transaction },
+//       );
+//     }
+
+//     await transaction.commit();
+
+//     const updatedEmployee = {
+//       ...employee.toJSON(),
+//       User: user.toJSON(),
+//     };
+
+//     res.status(200).json({
+//       message: "Employee updated successfully",
+//       employee: updatedEmployee,
+//     });
+//   } catch (error) {
+//     console.error("Error updating employee:", error);
+//     await transaction.rollback();
+//     res.status(500).json({ message: "Internal Server Error", error });
+//   }
+// };
+
 exports.updateEmployee = async (req, res) => {
   const transaction = await sequelize.transaction();
 
@@ -1143,12 +1302,6 @@ exports.updateEmployee = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    console.log(
-      email,
-      user.email,
-      "=== User found for update",
-      email && email !== user.email,
-    );
     // Check if email changed
     if (email && email !== user.email) {
       const existingUser = await User.findOne({
@@ -1187,7 +1340,7 @@ exports.updateEmployee = async (req, res) => {
         postal_code: zip,
         phone: homePhone,
         mobile_phone: mobilePhone,
-        date_of_birth: birthdate,
+        date_of_birth: birthdate, // Frontend sends Date object/ISO string, Sequelize handles it
         status,
         comments,
         ssn: SSN,
@@ -1203,56 +1356,300 @@ exports.updateEmployee = async (req, res) => {
       { transaction },
     );
 
-    // 🔄 Update Restrictions
+    // ====================================================================
+    // 🔄 Update Restrictions with active_date and inactive_date (Delta Update)
+    // ====================================================================
     if (Array.isArray(selectedRestrictions)) {
-      const restrictionIds = selectedRestrictions.map((r) => r.id);
-      await employee.setRestrictions(restrictionIds, { transaction });
-    }
+      const restrictionAssociations = selectedRestrictions.map((r) => ({
+        restriction_id: r.id,
+        active_date: r.active_date
+          ? new Date(r.active_date).toISOString().split("T")[0]
+          : null,
+        inactive_date: r.inactive_date
+          ? new Date(r.inactive_date).toISOString().split("T")[0]
+          : null,
+      }));
 
-    // 🔁 Update Recurring Blocked Times
-    await RecurringBlockedTime.destroy({
-      where: { employee_id: id },
-      transaction,
-    });
-    for (const block of recurringTimes) {
-      const { days, startDate, endDate, startTime, endTime } = block;
-      for (const day of days) {
-        await RecurringBlockedTime.create(
+      const currentEmployeeRestrictions = await employee.getRestrictions({
+        transaction,
+        joinTableAttributes: ["active_date", "inactive_date"],
+      });
+      const currentRestrictionMap = new Map(
+        currentEmployeeRestrictions.map((r) => [
+          r.id,
           {
-            employee_id: id,
-            day_of_week: day,
-            start_date: startDate,
-            end_date: endDate,
-            start_time: new Date(startTime).toTimeString().slice(0, 5),
-            end_time: new Date(endTime).toTimeString().slice(0, 5),
+            active_date: r.EmployeeRestriction.active_date,
+            inactive_date: r.EmployeeRestriction.inactive_date,
           },
-          { transaction },
+        ]),
+      );
+
+      const restrictionsToAdd = [];
+      const restrictionsToUpdate = [];
+      const restrictionsToRemoveIds = new Set(currentRestrictionMap.keys());
+
+      for (const newRestriction of restrictionAssociations) {
+        const existingJunctionData = currentRestrictionMap.get(
+          newRestriction.restriction_id,
+        );
+
+        if (existingJunctionData) {
+          const currentActiveDate = existingJunctionData.active_date
+            ? new Date(existingJunctionData.active_date)
+                .toISOString()
+                .split("T")[0]
+            : null;
+          const currentInactiveDate = existingJunctionData.inactive_date
+            ? new Date(existingJunctionData.inactive_date)
+                .toISOString()
+                .split("T")[0]
+            : null;
+
+          if (
+            currentActiveDate !== newRestriction.active_date ||
+            currentInactiveDate !== newRestriction.inactive_date
+          ) {
+            restrictionsToUpdate.push(newRestriction);
+          }
+          restrictionsToRemoveIds.delete(newRestriction.restriction_id);
+        } else {
+          restrictionsToAdd.push(newRestriction);
+        }
+      }
+
+      if (restrictionsToRemoveIds.size > 0) {
+        await employee.removeRestrictions(Array.from(restrictionsToRemoveIds), {
+          transaction,
+        });
+      }
+
+      for (const restriction of restrictionsToAdd) {
+        await employee.addRestriction(restriction.restriction_id, {
+          through: {
+            active_date: restriction.active_date,
+            inactive_date: restriction.inactive_date,
+          },
+          transaction,
+        });
+      }
+
+      for (const restriction of restrictionsToUpdate) {
+        await EmployeeRestriction.update(
+          {
+            active_date: restriction.active_date,
+            inactive_date: restriction.inactive_date,
+          },
+          {
+            where: {
+              employee_id: id,
+              restriction_id: restriction.restriction_id,
+            },
+            transaction,
+          },
         );
       }
     }
 
-    // 🔁 Update Time Offs
-    await TimeOff.destroy({ where: { employee_id: id }, transaction });
-    for (const timeOff of timeOffs) {
-      await TimeOff.create(
-        {
-          employee_id: id,
-          reason_id: timeOff.reason_id,
-          start_date: timeOff.startDate,
-          end_date: timeOff.endDate,
-          start_time: new Date(timeOff.startTime).toTimeString().slice(0, 5),
-          end_time: new Date(timeOff.endTime).toTimeString().slice(0, 5),
-        },
-        { transaction },
-      );
+    // ====================================================================
+    // 🔁 NEW: Update Recurring Blocked Times (Delta Update)
+    // ====================================================================
+    if (Array.isArray(recurringTimes)) {
+      // Normalize incoming data for comparison
+      const normalizedIncomingRecurringTimes = [];
+      for (const block of recurringTimes) {
+        if (!Array.isArray(block.days) || block.days.length === 0) continue; // Skip invalid blocks
+        for (const day of block.days) {
+          normalizedIncomingRecurringTimes.push({
+            // Frontend sends Date objects, convert to consistent format for comparison/storage
+            start_date: block.startDate
+              ? new Date(block.startDate).toISOString().split("T")[0]
+              : null,
+            end_date: block.endDate
+              ? new Date(block.endDate).toISOString().split("T")[0]
+              : null,
+            start_time: block.startTime
+              ? new Date(block.startTime).toTimeString().slice(0, 5)
+              : null,
+            end_time: block.endTime
+              ? new Date(block.endTime).toTimeString().slice(0, 5)
+              : null,
+            day_of_week: day,
+          });
+        }
+      }
+
+      const currentRecurringTimes = await RecurringBlockedTime.findAll({
+        where: { employee_id: id },
+        transaction,
+      });
+
+      const toAdd = [];
+      const toUpdate = [];
+      const toRemoveIds = new Set(currentRecurringTimes.map((rt) => rt.id));
+
+      for (const incomingBlock of normalizedIncomingRecurringTimes) {
+        const existingBlock = currentRecurringTimes.find(
+          (rt) =>
+            rt.day_of_week === incomingBlock.day_of_week &&
+            rt.start_date === incomingBlock.start_date &&
+            rt.end_date === incomingBlock.end_date &&
+            rt.start_time === incomingBlock.start_time &&
+            rt.end_time === incomingBlock.end_time,
+        );
+
+        if (existingBlock) {
+          // If a matching block is found, it means it already exists and is not modified
+          toRemoveIds.delete(existingBlock.id); // Keep this one
+        } else {
+          // If no matching block, it's a new one to add
+          toAdd.push(incomingBlock);
+        }
+      }
+
+      // Remove items that are no longer present
+      if (toRemoveIds.size > 0) {
+        await RecurringBlockedTime.destroy({
+          where: { id: { [Op.in]: Array.from(toRemoveIds) } },
+          transaction,
+        });
+      }
+
+      // Add new items
+      for (const blockData of toAdd) {
+        await RecurringBlockedTime.create(
+          { employee_id: id, ...blockData },
+          { transaction },
+        );
+      }
+      // Note: For recurring times, updates are tricky because they are defined by unique combinations
+      // of dates/times/days. If a date/time/day combination changes, it's essentially a new entry.
+      // So, the above add/remove logic is the most practical "update" for this structure.
+      // We are not handling "updates" of individual fields within an existing item if its identifying characteristics change,
+      // as that would imply we track by a unique ID, which incoming `recurringTimes` lack at the block level.
+    }
+
+    // ====================================================================
+    // 🔁 NEW: Update Time Offs (Delta Update)
+    // ====================================================================
+    if (Array.isArray(timeOffs)) {
+      const normalizedIncomingTimeOffs = timeOffs
+        .map((to) => ({
+          // Ensure reason_id is integer and other fields are formatted
+          reason_id: parseInt(to.reason_id),
+          start_date: to.startDate
+            ? new Date(to.startDate).toISOString().split("T")[0]
+            : null,
+          end_date: to.endDate
+            ? new Date(to.endDate).toISOString().split("T")[0]
+            : null,
+          start_time: to.startTime
+            ? new Date(to.startTime).toTimeString().slice(0, 5)
+            : null,
+          end_time: to.endTime
+            ? new Date(to.endTime).toTimeString().slice(0, 5)
+            : null,
+          // If frontend sends an `id` for existing time-offs, include it for matching
+          id: to.id || null,
+        }))
+        .filter((to) => to.reason_id && !isNaN(to.reason_id)); // Filter out invalid entries
+
+      const currentTimeOffs = await TimeOff.findAll({
+        where: { employee_id: id },
+        transaction,
+      });
+
+      const toAdd = [];
+      const toUpdate = [];
+      const toRemoveIds = new Set(currentTimeOffs.map((to) => to.id));
+
+      for (const incomingTimeOff of normalizedIncomingTimeOffs) {
+        if (incomingTimeOff.id) {
+          // This time-off has an ID, so it's an existing one
+          const existingTimeOff = currentTimeOffs.find(
+            (to) => to.id === incomingTimeOff.id,
+          );
+          if (existingTimeOff) {
+            // Check if anything actually changed
+            const hasChanged =
+              existingTimeOff.reason_id !== incomingTimeOff.reason_id ||
+              (existingTimeOff.start_date?.toISOString().split("T")[0] ||
+                null) !== incomingTimeOff.start_date ||
+              (existingTimeOff.end_date?.toISOString().split("T")[0] ||
+                null) !== incomingTimeOff.end_date ||
+              (existingTimeOff.start_time?.slice(0, 5) || null) !==
+                incomingTimeOff.start_time || // Compare slices
+              (existingTimeOff.end_time?.slice(0, 5) || null) !==
+                incomingTimeOff.end_time;
+
+            if (hasChanged) {
+              toUpdate.push(incomingTimeOff);
+            }
+            toRemoveIds.delete(incomingTimeOff.id); // Keep this one, it's either unchanged or updated
+          } else {
+            // This is an incoming time-off with an ID that doesn't exist in current - likely a new one
+            // This might happen if ID was generated on frontend for temporary use.
+            toAdd.push(incomingTimeOff);
+          }
+        } else {
+          // No ID from frontend, must be a new one
+          toAdd.push(incomingTimeOff);
+        }
+      }
+
+      // Remove items no longer present
+      if (toRemoveIds.size > 0) {
+        await TimeOff.destroy({
+          where: { id: { [Op.in]: Array.from(toRemoveIds) } },
+          transaction,
+        });
+      }
+
+      // Add new items
+      for (const timeOffData of toAdd) {
+        // Ensure not to pass the temporary frontend ID if it's not a valid DB ID
+        const { id: tempId, ...dataToCreate } = timeOffData;
+        await TimeOff.create(
+          { employee_id: id, ...dataToCreate },
+          { transaction },
+        );
+      }
+
+      // Update existing items
+      for (const timeOffData of toUpdate) {
+        await TimeOff.update(
+          {
+            reason_id: timeOffData.reason_id,
+            start_date: timeOffData.start_date,
+            end_date: timeOffData.end_date,
+            start_time: timeOffData.start_time,
+            end_time: timeOffData.end_time,
+          },
+          {
+            where: { id: timeOffData.id },
+            transaction,
+          },
+        );
+      }
     }
 
     await transaction.commit();
 
-    const updatedEmployee = {
-      ...employee.toJSON(),
-      User: user.toJSON(),
-    };
+    // To return the fully updated employee, including related data
+    const updatedEmployee = await Employee.findByPk(id, {
+      include: [
+        { model: User },
+        {
+          model: Restriction,
+          as: "restrictions",
+          through: {
+            attributes: ["active_date", "inactive_date"],
+          },
+        },
+        { model: RecurringBlockedTime, as: "recurringBlockedTimes" },
+        { model: TimeOff, as: "timeOffs" },
+      ],
+      transaction: null, // Fetch outside the current transaction, or create a new one.
+    });
 
     res.status(200).json({
       message: "Employee updated successfully",
@@ -1260,12 +1657,20 @@ exports.updateEmployee = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating employee:", error);
+    if (error.errors) {
+      error.errors.forEach((err) =>
+        console.error(
+          `Sequelize Error: ${err.message} - Path: ${err.path} - Value: ${err.value}`,
+        ),
+      );
+    }
     await transaction.rollback();
     res.status(500).json({ message: "Internal Server Error", error });
   }
 };
 
 // Soft Delete (Just updates deleted_at to new date)
+
 exports.softDeleteEmployee = async (req, res) => {
   try {
     const { id } = req.params;
