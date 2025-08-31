@@ -28,6 +28,7 @@ exports.createEmployee = async (req, res) => {
       city,
       state,
       zip,
+      employer,
       homePhone,
       mobilePhone,
       SSN,
@@ -100,6 +101,7 @@ exports.createEmployee = async (req, res) => {
         city,
         state,
         postal_code: zip,
+        employer,
         phone: homePhone,
         date_of_birth: birthdate,
         mobile_phone: mobilePhone,
@@ -323,11 +325,11 @@ exports.getNotScheduledEmployees = async (req, res) => {
         ...(type && { type }),
       },
       order,
-      attributes: ["id", "user_id", "phone", "type", "snf"],
+      attributes: ["id", "user_id", "phone", "type", "snf", "mobile_phone"],
       include: [
         {
           model: User,
-          attributes: ["first_name", "last_name", "image_url"],
+          attributes: ["first_name", "last_name", "image_url", "email"],
           required: true,
           where: {
             deleted_at: null,
@@ -407,7 +409,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         if (isUnavailable) {
           console.log(isUnavailable, "++++++++++isUnavailable");
           capacity = "Unavailable";
-          subtext = `Timeoff: ${isUnavailable.reason.name} `;
+          subtext = `${isUnavailable.reason.name} `;
         } else {
           const isLimited = emp.recurringBlockedTimes.find((b) => {
             return (
@@ -435,6 +437,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           id: emp.id,
           user_id: emp.user_id,
           phone: emp.phone,
+          mobile_phone: emp.mobile_phone,
           User: emp.User,
           restrictions: emp.restrictions,
           capacity,
@@ -1276,6 +1279,7 @@ exports.updateEmployee = async (req, res) => {
       city,
       state,
       zip,
+      employer,
       homePhone,
       mobilePhone,
       birthdate,
@@ -1362,6 +1366,7 @@ exports.updateEmployee = async (req, res) => {
         city,
         state,
         postal_code: zip,
+        employer,
         phone: homePhone,
         mobile_phone: mobilePhone,
         date_of_birth: birthdate, // Frontend sends Date object/ISO string, Sequelize handles it
