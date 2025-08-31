@@ -5,6 +5,7 @@ const {
   Event,
   Restriction,
   TimeOff,
+  TimeOffReason,
   RecurringBlockedTime,
   EmployeeRestriction,
 } = require("../models");
@@ -347,12 +348,23 @@ exports.getNotScheduledEmployees = async (req, res) => {
         {
           model: RecurringBlockedTime,
           as: "recurringBlockedTimes",
-          attributes: ["start_date", "end_date", "day_of_week"],
+          attributes: [
+            "start_date",
+            "end_date",
+            "day_of_week",
+            "start_time",
+            "end_time",
+          ],
         },
         {
           model: TimeOff,
           as: "timeOffs",
-          attributes: ["start_date", "end_date"],
+          attributes: ["start_date", "end_date", "reason_id"],
+          include: {
+            model: TimeOffReason, // Include TimeOffReason model
+            as: "reason",
+            attributes: ["name"], // Get the reason description
+          },
         },
       ],
     });
@@ -384,18 +396,20 @@ exports.getNotScheduledEmployees = async (req, res) => {
     const result = employees
       .map((emp) => {
         let capacity = "Available";
+        let subtext = "";
 
-        const isUnavailable = emp.timeOffs.some((t) => {
+        const isUnavailable = emp.timeOffs.find((t) => {
           return (
             moment(t.start_date).isSameOrBefore(inputDate, "day") &&
             moment(t.end_date).isSameOrAfter(inputDate, "day")
           );
         });
-
         if (isUnavailable) {
+          console.log(isUnavailable, "++++++++++isUnavailable");
           capacity = "Unavailable";
+          subtext = `Timeoff: ${isUnavailable.reason.name} `;
         } else {
-          const isLimited = emp.recurringBlockedTimes.some((b) => {
+          const isLimited = emp.recurringBlockedTimes.find((b) => {
             return (
               b.day_of_week === dayLetter &&
               moment(b.start_date).isSameOrBefore(inputDate, "day") &&
@@ -404,7 +418,16 @@ exports.getNotScheduledEmployees = async (req, res) => {
           });
 
           if (isLimited) {
+            console.log(isLimited, "++++++++++isLimited");
+
             capacity = "Limited";
+            const startTime = moment(isLimited.start_time, "HH:mm:ss").format(
+              "h:mma",
+            );
+            const endTime = moment(isLimited.end_time, "HH:mm:ss").format(
+              "h:mma",
+            );
+            subtext = `${startTime} - ${endTime}`;
           }
         }
 
@@ -415,6 +438,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           User: emp.User,
           restrictions: emp.restrictions,
           capacity,
+          subtext,
           type: emp.type,
           snf: emp.snf,
         };

@@ -18,6 +18,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "active",
       },
+      orderNumber: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        unique: true,
+      },
     },
     {
       tableName: "classifications",

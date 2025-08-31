@@ -1113,9 +1113,11 @@ const eventList = async (req, res) => {
         {
           model: Classification,
           as: "classification",
-          attributes: ["id", "abbreviation", "description"],
+          attributes: ["id", "abbreviation", "description", "order_number"],
         },
       ],
+      // raw: true,
+      // nest: true,
     });
 
     // 4️⃣ Group classes by assignment_id for easy lookup
@@ -1126,8 +1128,6 @@ const eventList = async (req, res) => {
       }
       classesByAssignment[cls.assignment_id].push(cls);
     });
-
-    console.log(events, "Fetched events for dropdown");
 
     // 5️⃣ Format the data for frontend
     const formatted = events.map((event) => ({
@@ -1141,20 +1141,24 @@ const eventList = async (req, res) => {
           name: `${elc.Contractor?.first_name} ${elc.Contractor?.last_name}`,
           company_name: elc.Contractor?.company_name,
           event_location_contractor_id: elc.id,
-          classes: (classesByAssignment[elc.id] || []).map((cls) => ({
-            id: cls.id,
-            classification_id: cls.classification_id,
-            class_type: cls.class_type,
-            start_time: cls.start_time,
-            end_time: cls.end_time,
-            classification: cls.classification
-              ? {
-                  id: cls.classification.id,
-                  abbreviation: cls.classification.abbreviation,
-                  description: cls.classification.description,
-                }
-              : null,
-          })),
+          classes: (classesByAssignment[elc.id] || []).map((cls) => {
+            return {
+              id: cls.id,
+              classification_id: cls.classification_id,
+              class_type: cls.class_type,
+              start_time: cls.start_time,
+              end_time: cls.end_time,
+              classification: cls.classification
+                ? {
+                    id: cls.classification.id,
+                    abbreviation: cls.classification.abbreviation,
+                    description: cls.classification.description,
+                    orderNumber:
+                      cls.classification.getDataValue("order_number"),
+                  }
+                : null,
+            };
+          }),
         })),
       })),
     }));
