@@ -325,7 +325,15 @@ exports.getNotScheduledEmployees = async (req, res) => {
         ...(type && { type }),
       },
       order,
-      attributes: ["id", "user_id", "phone", "type", "snf", "mobile_phone"],
+      attributes: [
+        "id",
+        "user_id",
+        "phone",
+        "type",
+        "snf",
+        "mobile_phone",
+        "comments",
+      ],
       include: [
         {
           model: User,
@@ -440,6 +448,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
           mobile_phone: emp.mobile_phone,
           User: emp.User,
           restrictions: emp.restrictions,
+          comments: emp.comments,
           capacity,
           subtext,
           type: emp.type,

@@ -189,6 +189,16 @@ exports.getScheduleByToken = async (req, res) => {
                 },
               ],
             },
+            {
+              model: Employee,
+              as: "steward",
+              include: [
+                {
+                  model: User,
+                  attributes: ["first_name", "last_name"],
+                },
+              ],
+            },
           ],
         },
       ],
@@ -231,6 +241,10 @@ exports.getScheduleByToken = async (req, res) => {
     }`.trim();
     const employeeName = `${schedule?.Employee?.User?.first_name} ${schedule?.Employee?.User?.last_name}`;
     const isNew = schedule.createdAt.getTime() === schedule.updatedAt.getTime();
+    const stewardEmployee = schedule?.EventLocationContractor?.steward;
+    const stewardName = stewardEmployee
+      ? `${stewardEmployee.User.first_name} ${stewardEmployee.User.last_name}`
+      : "";
 
     return res.status(200).json({
       event_name: eventName,
@@ -247,6 +261,7 @@ exports.getScheduleByToken = async (req, res) => {
       postalCode,
       employeeName,
       isNew,
+      stewardName,
     });
   } catch (error) {
     console.error("Error fetching schedule by token:", error);
