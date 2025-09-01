@@ -94,6 +94,7 @@ const createContractor = async (req, res) => {
       address_2,
       city,
       state,
+      status,
       zip,
       phone,
     } = req.body;
@@ -124,6 +125,7 @@ const createContractor = async (req, res) => {
       city,
       state,
       zip,
+      status,
       phone,
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
@@ -149,6 +151,7 @@ const updateContractorById = async (req, res) => {
       city,
       state,
       zip,
+      status,
       phone,
     } = req.body;
 
@@ -168,6 +171,7 @@ const updateContractorById = async (req, res) => {
     contractor.state = state;
     contractor.zip = zip;
     contractor.phone = phone;
+    contractor.status = status;
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 

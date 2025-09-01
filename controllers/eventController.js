@@ -151,6 +151,7 @@ const createEvent = async (req, res) => {
           {
             event_location_id: eventLocation.id,
             contractor_id: contractor.value,
+            steward_id: contractor.steward_id || null,
           },
           { transaction: t },
         );
@@ -382,7 +383,12 @@ const getEventById = async (req, res) => {
               attributes: ["id", "company_name"],
             },
           ],
-          attributes: ["id", "event_location_id", "contractor_id"],
+          attributes: [
+            "id",
+            "event_location_id",
+            "contractor_id",
+            "steward_id",
+          ],
         });
 
         // Step 4: enrich each contractor with classes + classification
@@ -682,15 +688,27 @@ const updateEvent = async (req, res) => {
       for (const contractor of loc.contractors || []) {
         let eventContractor = contractorMap.get(contractor.value);
 
+        console.log("Processing contractor:", contractor);
+
         if (!eventContractor) {
           eventContractor = await EventLocationContractor.create(
             {
               event_location_id: eventLocation.id,
               contractor_id: contractor.value,
+              steward_id: contractor.steward_id || null,
             },
             { transaction: t },
           );
+        } else {
+          // Update steward_id if changed
+          if (eventContractor.steward_id !== (contractor.steward_id || null)) {
+            await eventContractor.update(
+              { steward_id: contractor.steward_id || null },
+              { transaction: t },
+            );
+          }
         }
+
         seenContractorIds.add(eventContractor.contractor_id);
 
         // Classes (normal, inClasses, outClasses)

@@ -7,6 +7,7 @@ const getAllRestrictions = async (req, res) => {
       status = "all",
       search = "",
       restrictionName = "",
+      type = "",
       sortField = "description",
       sortOrder = "asc",
     } = req.query;
@@ -24,6 +25,19 @@ const getAllRestrictions = async (req, res) => {
       where.description = {
         [Op.iLike]: `%${search.trim()}%`,
       };
+    }
+
+    // 🔸 Filter by restrictionName (match description OR type)
+    if (restrictionName.trim() !== "") {
+      where[Op.or] = [
+        { description: { [Op.iLike]: `%${restrictionName.trim()}%` } },
+        { type: { [Op.iLike]: `%${restrictionName.trim()}%` } },
+      ];
+    }
+
+    // 🔸 Filter by type (explicit dropdown filter)
+    if (type.trim() !== "") {
+      where.type = type;
     }
 
     // ✅ Safe sortField check (prevent SQL injection)
@@ -75,7 +89,7 @@ const bulkCreate = async (req, res) => {
 const updateRestriction = async (req, res) => {
   try {
     const { id } = req.params;
-    const { description, status } = req.body;
+    const { description, status, type } = req.body;
 
     const restriction = await Restriction.findByPk(id);
     if (!restriction) {
@@ -84,6 +98,7 @@ const updateRestriction = async (req, res) => {
 
     restriction.description = description;
     restriction.status = status;
+    restriction.type = type;
     await restriction.save();
 
     res.json(restriction);

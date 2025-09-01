@@ -17,6 +17,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         allowNull: false,
       },
+      steward_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "employees",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "event_location_contractors",
@@ -31,6 +39,10 @@ module.exports = (sequelize, DataTypes) => {
     });
     EventLocationContractor.belongsTo(models.Contractor, {
       foreignKey: "contractor_id",
+    });
+    EventLocationContractor.belongsTo(models.Employee, {
+      foreignKey: "steward_id",
+      as: "steward",
     });
     EventLocationContractor.hasMany(models.ContractorClass, {
       foreignKey: "assignment_id",

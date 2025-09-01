@@ -19,6 +19,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "active",
       },
+      type: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: "Other",
+      },
     },
     {
       tableName: "restrictions",

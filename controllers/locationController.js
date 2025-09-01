@@ -12,7 +12,8 @@ const generateRandomColor = require("../utils/generateRandomColor");
 
 const createLocation = async (req, res) => {
   try {
-    const { name, address_1, address_2, city, state, postal_code } = req.body;
+    const { name, address_1, address_2, city, state, postal_code, status } =
+      req.body;
     const image_url = req.file ? `/uploads/${req.file.filename}` : null; // Store relative path
 
     // Auto-generate a unique non-grey/black/white color code
@@ -24,6 +25,7 @@ const createLocation = async (req, res) => {
       address_2,
       city,
       state,
+      status,
       postal_code,
       image_url,
       colour_code,
@@ -137,7 +139,8 @@ const getLocationById = async (req, res) => {
 const updateLocation = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, address_1, address_2, city, state, postal_code } = req.body;
+    const { name, address_1, address_2, city, state, postal_code, status } =
+      req.body;
 
     const location = await Location.findByPk(id);
     if (!location) return res.status(404).json({ error: "Location not found" });
@@ -153,6 +156,7 @@ const updateLocation = async (req, res) => {
     location.state = state;
     location.postal_code = postal_code;
     location.image_url = image_url;
+    location.status = status;
 
     await location.save();
     res.status(200).json(location);
