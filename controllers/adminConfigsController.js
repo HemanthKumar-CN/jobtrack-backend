@@ -34,10 +34,19 @@ const createOrUpdateAdminConfig = async (req, res) => {
       });
     }
 
+    const defaultNewMessage =
+      "You are scheduled for [Event] at [Location] from [Start Date], [Start Time]";
+    const defaultUpdateMessage =
+      "Your schedule for [Event] at [Location] is updated from [Start Date], [Start Time]";
+
     if (type === "new_schedule") {
-      config.new_schedule_message = message;
+      config.new_schedule_message = message?.trim()
+        ? message
+        : defaultNewMessage;
     } else if (type === "update_schedule") {
-      config.update_schedule_message = message;
+      config.update_schedule_message = message?.trim()
+        ? message
+        : defaultUpdateMessage;
     } else {
       return res.status(400).json({ success: false, error: "Invalid type" });
     }
