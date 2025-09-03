@@ -28,7 +28,7 @@ const createOrUpdateAdminConfig = async (req, res) => {
     if (!config) {
       // create blank config first
       config = await AdminConfig.create({
-        user_id,
+        user_id: req.user.userId,
         new_schedule_message: null,
         update_schedule_message: null,
       });
