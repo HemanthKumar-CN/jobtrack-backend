@@ -17,6 +17,7 @@ const {
   TimeOff,
   RecurringBlockedTime,
   ContractorClass,
+  AdminConfig,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -491,13 +492,33 @@ const createBulkSchedule = async (req, res) => {
         minute: "2-digit",
         hour12: true,
       });
-      const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
+
+      const scheduleMessage = await AdminConfig.findOne({
+        where: { user_id: req.user.userId },
+      });
+
+      const employee = await Employee.findByPk(employeeId, {
+        attributes: ["phone"],
+      });
+
+      const baseMessage = scheduleMessage?.new_schedule_message;
+
+      const messageBody =
+        baseMessage
+          .replace("[Event]", event.event_name)
+          .replace("[Location]", locationData.EventLocation.Location.name)
+          .replace("[Start Date]", formattedTime)
+          .replace("[Start Time]", formattedTime) +
+        `. Confirm 👉 ${scheduleLink}`;
+
+      // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
       // **Send SMS to Employee**
-      const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+      // const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+      const employeePhone = employee.phone;
 
       console.log("/////===============", scheduleLink);
-      console.log(messageBody, "sms message body--", "===");
+      console.log(messageBody, "sms message body--", "===", employeePhone);
 
       await client.messages.create({
         body: messageBody,

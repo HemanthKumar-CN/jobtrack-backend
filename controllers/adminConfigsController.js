@@ -1,0 +1,57 @@
+const { AdminConfig } = require("../models");
+
+const getAdminConfigs = async (req, res) => {
+  try {
+    const config = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+    });
+
+    if (!config) {
+      return res.status(404).json({ success: false, error: "Not found" });
+    }
+
+    res.json({ success: true, data: config });
+  } catch (error) {
+    console.error("Error fetching AdminConfig:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+const createOrUpdateAdminConfig = async (req, res) => {
+  try {
+    const { type, message } = req.body;
+
+    let config = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+    });
+
+    if (!config) {
+      // create blank config first
+      config = await AdminConfig.create({
+        user_id,
+        new_schedule_message: null,
+        update_schedule_message: null,
+      });
+    }
+
+    if (type === "new_schedule") {
+      config.new_schedule_message = message;
+    } else if (type === "update_schedule") {
+      config.update_schedule_message = message;
+    } else {
+      return res.status(400).json({ success: false, error: "Invalid type" });
+    }
+
+    await config.save();
+
+    res.json({ success: true, data: config });
+  } catch (error) {
+    console.error("Error updating AdminConfig:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+module.exports = {
+  getAdminConfigs,
+  createOrUpdateAdminConfig,
+};
