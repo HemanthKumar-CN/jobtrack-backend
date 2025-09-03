@@ -514,8 +514,8 @@ const createBulkSchedule = async (req, res) => {
       // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
       // **Send SMS to Employee**
-      // const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
-      const employeePhone = employee.phone;
+      const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+      // const employeePhone = employee.phone;
 
       console.log("/////===============", scheduleLink);
       console.log(messageBody, "sms message body--", "===", employeePhone);
