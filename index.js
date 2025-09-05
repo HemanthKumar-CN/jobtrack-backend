@@ -13,7 +13,7 @@ const app = express();
 // ✅ Use cookie-parser to parse cookies
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173", // ✅ Set your frontend URL
+    origin: process.env.CLIENT_URL || "https://dev.schedyl.com", // ✅ Set your frontend URL
     credentials: true, // ✅ Allow credentials (cookies, authorization headers)
   }),
 ); // Allow all origins (for development)
