@@ -99,5 +99,14 @@ sequelize
   .then(() => console.log("Database connected..."))
   .catch((err) => console.error("Error connecting to database:", err));
 
+// ✅ Global error handler (last middleware)
+app.use((err, req, res, next) => {
+  console.error("🔥 Uncaught error:", err.stack || err);
+  res.status(500).json({
+    success: false,
+    error: err || "Internal Server Error",
+  });
+});
+
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
