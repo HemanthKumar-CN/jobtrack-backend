@@ -90,8 +90,8 @@ const getLocations = async (req, res) => {
 
     const locations = await Location.findAll({
       where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      // limit: parseInt(limit),
+      // offset: parseInt(offset),
       order,
     });
 

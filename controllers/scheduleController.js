@@ -1218,44 +1218,83 @@ const employeeSchedules = async (req, res) => {
     console.log(startDate, endDate, "??????????");
 
     // Filter schedules that overlap with the given date range
+    // if (startDate && endDate) {
+    //   whereCondition[Op.and] = [
+    //     { start_date: { [Op.lte]: endDate } }, // Starts on or before the requested end_date
+    //     { end_date: { [Op.gte]: startDate } }, // Ends on or after the requested start_date
+    //   ];
+    // }
+
     if (startDate && endDate) {
-      whereCondition[Op.and] = [
-        { start_date: { [Op.lte]: endDate } }, // Starts on or before the requested end_date
-        { end_date: { [Op.gte]: startDate } }, // Ends on or after the requested start_date
-      ];
+      whereCondition.start_time = {
+        [Op.between]: [new Date(startDate), new Date(endDate)],
+      };
     }
 
     console.log(whereCondition, "?????........");
 
+    // const schedules = await Schedule.findAll({
+    //   where: whereCondition,
+
+    //   include: [
+    //     // { model: Employee, attributes: ["id", "name", "email"] },
+    //     {
+    //       model: Event,
+    //       attributes: ["id", "event_name"],
+    //       include: [
+    //         {
+    //           model: Location,
+    //           attributes: [
+    //             "name",
+    //             "address_1",
+    //             "address_2",
+    //             "city",
+    //             "state",
+    //             "postal_code",
+    //             "image_url",
+    //             "colour_code",
+    //           ],
+    //         },
+    //       ],
+    //     },
+    //   ],
+    //   order: [
+    //     ["start_date", "ASC"],
+    //     ["start_time", "ASC"],
+    //   ],
+    // });
+
     const schedules = await Schedule.findAll({
       where: whereCondition,
-
       include: [
-        // { model: Employee, attributes: ["id", "name", "email"] },
         {
           model: Event,
-          attributes: ["id", "event_name"],
+          attributes: ["id", "event_name", "start_date", "end_date"],
           include: [
             {
-              model: Location,
-              attributes: [
-                "name",
-                "address_1",
-                "address_2",
-                "city",
-                "state",
-                "postal_code",
-                "image_url",
-                "colour_code",
+              model: EventLocation,
+              attributes: ["id"],
+              include: [
+                {
+                  model: Location,
+                  attributes: [
+                    "id",
+                    "name",
+                    "address_1",
+                    "address_2",
+                    "city",
+                    "state",
+                    "postal_code",
+                    "image_url",
+                    "colour_code",
+                  ],
+                },
               ],
             },
           ],
         },
       ],
-      order: [
-        ["start_date", "ASC"],
-        ["start_time", "ASC"],
-      ],
+      order: [["start_time", "ASC"]],
     });
 
     console.log(schedules, "???????///////////////");

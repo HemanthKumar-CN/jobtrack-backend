@@ -49,8 +49,8 @@ const getAllContractors = async (req, res) => {
 
     const contractors = await Contractor.findAll({
       where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      // limit: parseInt(limit),
+      // offset: parseInt(offset),
       order,
     });
 

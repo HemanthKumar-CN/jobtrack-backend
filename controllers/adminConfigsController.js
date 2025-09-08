@@ -7,7 +7,9 @@ const getAdminConfigs = async (req, res) => {
     });
 
     if (!config) {
-      return res.status(404).json({ success: false, error: "Not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Config doesn't exist" });
     }
 
     res.json({ success: true, data: config });

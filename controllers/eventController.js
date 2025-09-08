@@ -790,6 +790,45 @@ const updateEvent = async (req, res) => {
   }
 };
 
+const getActiveEventLocations = async (req, res) => {
+  try {
+    const { date } = req.params;
+
+    // ensure the date is valid
+    if (!date || isNaN(new Date(date))) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    const activeLocations = await Location.findAll({
+      where: { status: "active" },
+      attributes: ["id", "name"],
+      include: [
+        {
+          model: EventLocation,
+          as: "eventLocations",
+          required: true,
+          include: [
+            {
+              model: Event,
+              where: {
+                start_date: { [Op.lte]: date }, // start_date <= date
+                end_date: { [Op.gte]: date }, // end_date >= date
+              },
+              attributes: ["id", "event_name", "start_date", "end_date"],
+            },
+          ],
+          attributes: ["id", "event_id"],
+        },
+      ],
+    });
+
+    return res.json(activeLocations);
+  } catch (error) {
+    console.error("Error fetching active event locations:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -797,4 +836,5 @@ module.exports = {
   updateEvent,
   deleteEvent,
   getEventList,
+  getActiveEventLocations,
 };

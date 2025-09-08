@@ -573,8 +573,8 @@ exports.getAllEmployees = async (req, res) => {
         },
       ],
       where: whereClause,
-      limit: parseInt(limit),
-      offset,
+      // limit: parseInt(limit),
+      // offset,
       order,
     });
 
@@ -1400,12 +1400,8 @@ exports.updateEmployee = async (req, res) => {
     if (Array.isArray(selectedRestrictions)) {
       const restrictionAssociations = selectedRestrictions.map((r) => ({
         restriction_id: r.id,
-        active_date: r.active_date
-          ? new Date(r.active_date).toISOString().split("T")[0]
-          : null,
-        inactive_date: r.inactive_date
-          ? new Date(r.inactive_date).toISOString().split("T")[0]
-          : null,
+        active_date: r.active_date ? r.active_date : null,
+        inactive_date: r.inactive_date ? r.inactive_date : null,
       }));
 
       const currentEmployeeRestrictions = await employee.getRestrictions({
@@ -1433,14 +1429,10 @@ exports.updateEmployee = async (req, res) => {
 
         if (existingJunctionData) {
           const currentActiveDate = existingJunctionData.active_date
-            ? new Date(existingJunctionData.active_date)
-                .toISOString()
-                .split("T")[0]
+            ? existingJunctionData.active_date
             : null;
           const currentInactiveDate = existingJunctionData.inactive_date
-            ? new Date(existingJunctionData.inactive_date)
-                .toISOString()
-                .split("T")[0]
+            ? existingJunctionData.inactive_date
             : null;
 
           if (
