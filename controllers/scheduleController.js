@@ -514,8 +514,8 @@ const createBulkSchedule = async (req, res) => {
       // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
       // **Send SMS to Employee**
-      const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
-      // const employeePhone = employee.phone;
+      const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
+      // const employeePhone = employee.phone; +1 (773) 610-7719   "+13123711639"
 
       console.log("/////===============", scheduleLink);
       console.log(messageBody, "sms message body--", "===", employeePhone);
@@ -1354,7 +1354,7 @@ const updateSchedule = async (req, res) => {
     const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
     // **Send SMS to Employee**
-    const employeePhone = "+13123711639"; // Hardcoded for now, later replace with actual employee's number
+    const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
 
     console.log("/////===============", scheduleLink);
     console.log(messageBody, "sms message body--", "===");
