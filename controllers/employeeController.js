@@ -1732,6 +1732,7 @@ exports.getEmployeesList = async (req, res) => {
         {
           model: User,
           attributes: ["id", "image_url", "first_name", "last_name"], // Get user data (image_url)
+          required: true,
         },
       ],
       where: {

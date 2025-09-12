@@ -165,8 +165,8 @@ const createEvent = async (req, res) => {
                 assignment_id: assignment.id,
                 classification_id: cls.value,
                 class_type: classType,
-                start_time: cls.startTime,
-                end_time: cls.endTime,
+                start_time: cls.startTime || null,
+                end_time: cls.endTime || null,
               },
               { transaction: t },
             );
@@ -254,7 +254,6 @@ const getAllEvents = async (req, res) => {
     } else if (tab === "Future") {
       whereCondition.start_date = { [Op.gt]: today.toDate() };
     }
-
     // Default sorting
     let order = [["start_date", "DESC"]];
 
@@ -305,6 +304,12 @@ const getAllEvents = async (req, res) => {
       const start = moment(event.start_date);
       const end = moment(event.end_date);
 
+      console.log(
+        "Event dates: ++++++Today==",
+        event.start_date,
+        event.end_date,
+        whereCondition,
+      );
       let status = "Future";
       if (today.isBetween(start, end, undefined, "[]")) {
         status = "Current";
@@ -623,14 +628,7 @@ const updateEvent = async (req, res) => {
     } = req.body;
 
     // 🔎 Validate required fields
-    if (
-      !event_name ||
-      !project_code ||
-      !project_comments ||
-      !start_date ||
-      !end_date ||
-      !Array.isArray(locations)
-    ) {
+    if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
       await t.rollback();
       return res.status(400).json({ error: "Missing required fields" });
     }
@@ -738,14 +736,17 @@ const updateEvent = async (req, res) => {
                   assignment_id: eventContractor.id,
                   classification_id: cl.value,
                   class_type: type,
-                  start_time: cl.startTime,
-                  end_time: cl.endTime,
+                  start_time: cl.startTime || null,
+                  end_time: cl.endTime || null,
                 },
                 { transaction: t },
               );
             } else {
               await eventClass.update(
-                { start_time: cl.startTime, end_time: cl.endTime },
+                {
+                  start_time: cl.startTime || null,
+                  end_time: cl.endTime || null,
+                },
                 { transaction: t },
               );
             }

@@ -92,6 +92,7 @@ const createContractor = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       status,
@@ -122,6 +123,7 @@ const createContractor = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       zip,
@@ -137,6 +139,19 @@ const createContractor = async (req, res) => {
   }
 };
 
+const getAllContractorsWhoAreEmployers = async (req, res) => {
+  try {
+    const employers = await Contractor.findAll({
+      where: { is_employer: true },
+      attributes: ["id", "company_name"],
+      order: [["company_name", "ASC"]],
+    });
+    res.status(200).json({ employers });
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // Update a contractor by ID
 const updateContractorById = async (req, res) => {
   try {
@@ -148,6 +163,7 @@ const updateContractorById = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       zip,
@@ -167,6 +183,7 @@ const updateContractorById = async (req, res) => {
     contractor.email = email;
     contractor.address_1 = address_1;
     contractor.address_2 = address_2;
+    contractor.is_employer = is_employer;
     contractor.city = city;
     contractor.state = state;
     contractor.zip = zip;
@@ -213,4 +230,5 @@ module.exports = {
   getContractorById,
   deleteContractor,
   getContractsDropdown,
+  getAllContractorsWhoAreEmployers,
 };
