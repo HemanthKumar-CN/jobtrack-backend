@@ -24,7 +24,7 @@ const {
 
 router.post("/", createBulkSchedule);
 router.get("/allSchedules/:date", getSchedules);
-router.get("/eventList/event-location-contractors", eventList);
+router.get("/eventList/event-location-contractors/:date", eventList);
 router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
 router.get("/classification/class-list", getClassList);

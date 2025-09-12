@@ -1058,13 +1058,15 @@ const getTimeOffReason = async (req, res) => {
 
 const eventList = async (req, res) => {
   try {
+    const { date } = req.params;
+
     const today = moment().startOf("day").toDate(); // Get today's date
 
     const events = await Event.findAll({
       attributes: ["id", "event_name"],
       where: {
-        start_date: { [Op.lte]: today },
-        end_date: { [Op.gte]: today },
+        start_date: { [Op.lte]: date },
+        end_date: { [Op.gte]: date },
       },
       include: [
         {
