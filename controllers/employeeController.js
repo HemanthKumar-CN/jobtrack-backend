@@ -299,8 +299,8 @@ exports.getNotScheduledEmployees = async (req, res) => {
 
   try {
     // 🔸 Step 1: Get employee IDs already scheduled on this date
-    const startOfDay = moment(date).startOf("day").toDate();
-    const endOfDay = moment(date).endOf("day").toDate();
+    const startOfDay = moment.utc(date).startOf("day").toDate();
+    const endOfDay = moment.utc(date).endOf("day").toDate();
 
     const scheduled = await Schedule.findAll({
       where: {
