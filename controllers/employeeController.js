@@ -315,6 +315,12 @@ exports.getNotScheduledEmployees = async (req, res) => {
 
     const scheduledEmployeeIds = scheduled.map((s) => s.employee_id);
 
+    console.log(
+      "Scheduled raw: @not-scheduled",
+      scheduled.map((s) => s.toJSON()),
+    );
+    console.log("Scheduled IDs: @not-scheduled", scheduledEmployeeIds);
+
     // 🔸 Step 2: Fetch all employees
     const employees = await Employee.findAll({
       where: {
