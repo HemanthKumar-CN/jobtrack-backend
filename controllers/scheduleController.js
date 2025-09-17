@@ -459,7 +459,7 @@ const createBulkSchedule = async (req, res) => {
         task_event_id: eventId,
         event_location_contractor_id: locationContractorId || null,
         contractor_class_id: classificationId || null,
-        start_time: new Date(startTime), // UTC
+        start_time: startTime, // UTC
         comments: comments || null,
         status: "pending",
         response_token: responseToken,
@@ -1218,14 +1218,6 @@ const employeeSchedules = async (req, res) => {
     }
 
     console.log(startDate, endDate, "??????????");
-
-    // Filter schedules that overlap with the given date range
-    // if (startDate && endDate) {
-    //   whereCondition[Op.and] = [
-    //     { start_date: { [Op.lte]: endDate } }, // Starts on or before the requested end_date
-    //     { end_date: { [Op.gte]: startDate } }, // Ends on or after the requested start_date
-    //   ];
-    // }
 
     if (startDate && endDate) {
       whereCondition.start_time = {
