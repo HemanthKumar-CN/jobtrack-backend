@@ -98,6 +98,7 @@ const createContractor = async (req, res) => {
       status,
       zip,
       phone,
+      hourly_rate,
     } = req.body;
 
     console.log(req.body);
@@ -129,6 +130,7 @@ const createContractor = async (req, res) => {
       zip,
       status,
       phone,
+      hourly_rate,
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
     });
@@ -168,6 +170,7 @@ const updateContractorById = async (req, res) => {
       state,
       zip,
       status,
+      hourly_rate,
       phone,
     } = req.body;
 
@@ -189,6 +192,7 @@ const updateContractorById = async (req, res) => {
     contractor.zip = zip;
     contractor.phone = phone;
     contractor.status = status;
+    contractor.hourly_rate = hourly_rate;
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 
