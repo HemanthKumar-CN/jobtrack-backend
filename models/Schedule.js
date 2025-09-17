@@ -135,6 +135,11 @@ module.exports = (sequelize, DataTypes) => {
       start_time: {
         type: DataTypes.DATE,
         allowNull: false,
+        get() {
+          const rawValue = this.getDataValue("start_time");
+          if (!rawValue) return null;
+          return rawValue.toString();
+        },
       },
 
       status: {
