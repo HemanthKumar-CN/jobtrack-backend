@@ -167,6 +167,7 @@ const createEvent = async (req, res) => {
                 class_type: classType,
                 start_time: cls.startTime || null,
                 end_time: cls.endTime || null,
+                need_number: cls.needNumber || null,
               },
               { transaction: t },
             );
@@ -408,6 +409,7 @@ const getEventById = async (req, res) => {
                 "class_type",
                 "start_time",
                 "end_time",
+                "need_number",
               ],
               include: [
                 {
@@ -738,6 +740,7 @@ const updateEvent = async (req, res) => {
                   class_type: type,
                   start_time: cl.startTime || null,
                   end_time: cl.endTime || null,
+                  need_number: cl.needNumber || null,
                 },
                 { transaction: t },
               );
@@ -746,6 +749,7 @@ const updateEvent = async (req, res) => {
                 {
                   start_time: cl.startTime || null,
                   end_time: cl.endTime || null,
+                  need_number: cl.needNumber || null,
                 },
                 { transaction: t },
               );
