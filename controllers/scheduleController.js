@@ -1131,6 +1131,7 @@ const eventList = async (req, res) => {
         "class_type",
         "start_time",
         "end_time",
+        "need_number",
       ],
       include: [
         {
@@ -1171,6 +1172,7 @@ const eventList = async (req, res) => {
               class_type: cls.class_type,
               start_time: cls.start_time,
               end_time: cls.end_time,
+              need_number: cls.need_number,
               classification: cls.classification
                 ? {
                     id: cls.classification.id,
