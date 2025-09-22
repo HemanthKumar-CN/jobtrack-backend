@@ -541,7 +541,14 @@ const createBulkSchedule = async (req, res) => {
 
 const getSchedules = async (req, res) => {
   try {
-    const { status, task_event_id, location_id, search, capacity } = req.query;
+    const {
+      status,
+      task_event_id,
+      location_id,
+      search,
+      capacity,
+      classification_id,
+    } = req.query;
     const date = req.params.date;
 
     const inputDate = moment(date, "YYYY-MM-DD"); // 🔸 Added
@@ -573,6 +580,10 @@ const getSchedules = async (req, res) => {
     if (location_id) {
       whereClause["$EventLocationContractor.EventLocation.location_id$"] =
         location_id;
+    }
+
+    if (classification_id) {
+      whereClause["$ContractorClass.classification_id$"] = classification_id;
     }
 
     const userWhereClause = {};
