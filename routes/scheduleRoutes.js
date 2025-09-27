@@ -18,8 +18,8 @@ const {
   getClassList,
   eventList,
   getLatestConfirmedAssignments,
-  getScheduleByToken,
   getTimeOffReason,
+  getScheduledEventList,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
@@ -29,6 +29,10 @@ router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
 router.get("/classification/class-list", getClassList);
 router.get("/timeoff/reason-list", getTimeOffReason);
+router.get(
+  "/event-schedule/right-sidebar/list/:eventDate",
+  getScheduledEventList,
+);
 router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
 router.get("/employee_schedule/:employee_id", employeeSchedules);

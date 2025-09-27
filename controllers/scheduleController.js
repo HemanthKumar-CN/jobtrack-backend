@@ -1721,6 +1721,246 @@ const exportExceeding40HoursReport = async (req, res) => {
   }
 };
 
+const getScheduledEventList = async (req, res) => {
+  try {
+    const { eventDate } = req.params;
+
+    // Step 1: Get all events for the date
+    const events = await Event.findAll({
+      where: {
+        start_date: { [Op.lte]: eventDate },
+        end_date: { [Op.gte]: eventDate },
+      },
+      order: [["start_date", "ASC"]],
+    });
+
+    if (events.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No events found for the specified date",
+        data: [],
+        total_events: 0,
+      });
+    }
+
+    const eventIds = events.map((event) => event.id);
+
+    // Step 2: Get all event locations for these events
+    const eventLocations = await EventLocation.findAll({
+      where: {
+        event_id: { [Op.in]: eventIds },
+      },
+      include: [
+        {
+          model: Location,
+          attributes: [
+            "id",
+            "name",
+            "address_1",
+            "city",
+            "state",
+            "colour_code",
+          ],
+        },
+      ],
+    });
+
+    const eventLocationIds = eventLocations.map((el) => el.id);
+
+    // Step 3: Get all event location contractors
+    const eventLocationContractors = await EventLocationContractor.findAll({
+      where: {
+        event_location_id: { [Op.in]: eventLocationIds },
+      },
+      include: [
+        {
+          model: Contractor,
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "company_name",
+            "email",
+            "status",
+          ],
+        },
+      ],
+    });
+
+    const eventLocationContractorIds = eventLocationContractors.map(
+      (elc) => elc.id,
+    );
+
+    // Step 4: Get all contractor classes with classifications
+    const contractorClasses = await ContractorClass.findAll({
+      where: {
+        assignment_id: { [Op.in]: eventLocationContractorIds },
+      },
+      include: [
+        {
+          model: Classification,
+          as: "classification",
+          attributes: ["id", "abbreviation", "description", "status"],
+        },
+      ],
+    });
+
+    const contractorClassIds = contractorClasses.map((cc) => cc.id);
+
+    // Step 5: Get schedule counts by status for each contractor class
+    const scheduleCounts = await Schedule.findAll({
+      where: {
+        contractor_class_id: { [Op.in]: contractorClassIds },
+        is_deleted: false,
+        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+      },
+      attributes: [
+        "contractor_class_id",
+        "status",
+        [fn("COUNT", col("id")), "count"],
+      ],
+      group: ["contractor_class_id", "status"],
+    });
+
+    // Step 6: Create lookup maps for easy data association
+    const eventLocationsMap = {};
+    eventLocations.forEach((el) => {
+      if (!eventLocationsMap[el.event_id]) {
+        eventLocationsMap[el.event_id] = [];
+      }
+      eventLocationsMap[el.event_id].push(el);
+    });
+
+    const eventLocationContractorsMap = {};
+    eventLocationContractors.forEach((elc) => {
+      if (!eventLocationContractorsMap[elc.event_location_id]) {
+        eventLocationContractorsMap[elc.event_location_id] = [];
+      }
+      eventLocationContractorsMap[elc.event_location_id].push(elc);
+    });
+
+    const contractorClassesMap = {};
+    contractorClasses.forEach((cc) => {
+      if (!contractorClassesMap[cc.assignment_id]) {
+        contractorClassesMap[cc.assignment_id] = [];
+      }
+      contractorClassesMap[cc.assignment_id].push(cc);
+    });
+
+    // Create schedule counts map by contractor_class_id
+    const scheduleCountsMap = {};
+    scheduleCounts.forEach((sc) => {
+      const classId = sc.getDataValue("contractor_class_id");
+      const status = sc.getDataValue("status");
+      const count = parseInt(sc.getDataValue("count"));
+
+      if (!scheduleCountsMap[classId]) {
+        scheduleCountsMap[classId] = {
+          pending: 0,
+          confirmed: 0,
+          declined: 0,
+        };
+      }
+      scheduleCountsMap[classId][status] = count;
+    });
+
+    // Step 6: Transform the data to flat structure
+    const transformedData = [];
+
+    events.forEach((event) => {
+      const eventLocationsList = eventLocationsMap[event.id] || [];
+
+      eventLocationsList.forEach((eventLocation) => {
+        const eventLocationContractorsList =
+          eventLocationContractorsMap[eventLocation.id] || [];
+
+        eventLocationContractorsList.forEach((eventLocationContractor) => {
+          const contractorClassesList =
+            contractorClassesMap[eventLocationContractor.id] || [];
+
+          // Group classes by class_type for each contractor
+          const classTypes = {};
+          contractorClassesList.forEach((contractorClass) => {
+            const classType = contractorClass.class_type;
+            if (!classTypes[classType]) {
+              classTypes[classType] = [];
+            }
+
+            // Get schedule counts for this contractor class
+            const scheduleCounts = scheduleCountsMap[contractorClass.id] || {
+              pending: 0,
+              confirmed: 0,
+              declined: 0,
+            };
+
+            classTypes[classType].push({
+              contractor_class_id: contractorClass.id,
+              classification_id: contractorClass.classification_id,
+              classification_abbreviation:
+                contractorClass.classification.abbreviation,
+              classification_description:
+                contractorClass.classification.description,
+              start_time: contractorClass.start_time,
+              end_time: contractorClass.end_time,
+              need_number: contractorClass.need_number,
+              schedules: scheduleCounts, // Add schedule counts here
+            });
+          });
+
+          // Create a single flat object for each event-location-contractor combination
+          transformedData.push({
+            // Event details
+            event_id: event.id,
+            event_name: event.event_name,
+            project_code: event.project_code,
+            project_comments: event.project_comments,
+            event_start_date: event.start_date,
+            event_end_date: event.end_date,
+
+            // Location details
+            event_location_id: eventLocation.id,
+            location_id: eventLocation.Location.id,
+            location_name: eventLocation.Location.name,
+            location_address: eventLocation.Location.address_1,
+            location_city: eventLocation.Location.city,
+            location_state: eventLocation.Location.state,
+            colour_code: eventLocation.Location.colour_code,
+
+            // Contractor details
+            event_location_contractor_id: eventLocationContractor.id,
+            contractor_id: eventLocationContractor.Contractor.id,
+            contractor_name: `${eventLocationContractor.Contractor.first_name} ${eventLocationContractor.Contractor.last_name}`,
+            contractor_company: eventLocationContractor.Contractor.company_name,
+            contractor_email: eventLocationContractor.Contractor.email,
+            contractor_status: eventLocationContractor.Contractor.status,
+            steward_id: eventLocationContractor.steward_id,
+
+            // Classes grouped by type
+            class_types: {
+              regular: classTypes.regular || [],
+              in: classTypes.in || [],
+              out: classTypes.out || [],
+            },
+          });
+        });
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Scheduled events list retrieved successfully",
+      data: transformedData,
+      total_events: transformedData.length,
+    });
+  } catch (error) {
+    console.error("Error fetching scheduled events list:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSchedule,
   createBulkSchedule,
@@ -1740,4 +1980,5 @@ module.exports = {
   exportExceeding40HoursReport,
   getClassList,
   getLatestConfirmedAssignments,
+  getScheduledEventList,
 };
