@@ -115,6 +115,7 @@ const createEvent = async (req, res) => {
       start_date,
       end_date,
       locations,
+      event_type,
     } = req.body;
 
     if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
@@ -129,6 +130,7 @@ const createEvent = async (req, res) => {
         project_comments,
         start_date: moment(start_date).toDate(),
         end_date: moment(end_date).toDate(),
+        event_type,
       },
       { transaction: t },
     );
@@ -359,6 +361,7 @@ const getEventById = async (req, res) => {
         "project_comments",
         "start_date",
         "end_date",
+        "event_type",
       ],
     });
 
@@ -627,6 +630,7 @@ const updateEvent = async (req, res) => {
       start_date,
       end_date,
       locations,
+      event_type,
     } = req.body;
 
     // 🔎 Validate required fields
@@ -637,7 +641,14 @@ const updateEvent = async (req, res) => {
 
     // 1️⃣ Update Event basic info
     const [updated] = await Event.update(
-      { event_name, project_code, project_comments, start_date, end_date },
+      {
+        event_name,
+        project_code,
+        project_comments,
+        start_date,
+        end_date,
+        event_type,
+      },
       { where: { id }, transaction: t },
     );
 

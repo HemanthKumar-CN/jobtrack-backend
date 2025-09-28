@@ -1800,7 +1800,13 @@ const getScheduledEventList = async (req, res) => {
         {
           model: Classification,
           as: "classification",
-          attributes: ["id", "abbreviation", "description", "status"],
+          attributes: [
+            "id",
+            "abbreviation",
+            "description",
+            "status",
+            "order_number",
+          ],
         },
       ],
     });
@@ -1898,6 +1904,8 @@ const getScheduledEventList = async (req, res) => {
               classification_id: contractorClass.classification_id,
               classification_abbreviation:
                 contractorClass.classification.abbreviation,
+              classification_order:
+                contractorClass.classification.order_number || null,
               classification_description:
                 contractorClass.classification.description,
               start_time: contractorClass.start_time,

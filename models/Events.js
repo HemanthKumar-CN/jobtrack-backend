@@ -16,11 +16,15 @@ module.exports = (sequelize, DataTypes) => {
       },
       project_code: {
         type: DataTypes.STRING,
-        allowNull: true, // set false if mandatory
+        allowNull: true,
+      },
+      event_type: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       project_comments: {
         type: DataTypes.TEXT,
-        allowNull: true, // set false if mandatory
+        allowNull: true,
       },
       start_date: {
         type: DataTypes.DATE,
