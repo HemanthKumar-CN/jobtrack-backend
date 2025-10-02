@@ -20,6 +20,10 @@ const {
   getLatestConfirmedAssignments,
   getTimeOffReason,
   getScheduledEventList,
+  getTimeSheetEventList,
+  getTimesheetdata,
+  updateTimesheet,
+  updateBulkTimesheets,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
@@ -33,6 +37,10 @@ router.get(
   "/event-schedule/right-sidebar/list/:eventDate",
   getScheduledEventList,
 );
+router.get("/timesheet/eventList/:eventDate", getTimesheetdata);
+router.put("/timesheet/:timesheetId", updateTimesheet);
+router.put("/timesheet/bulk/update", updateBulkTimesheets);
+router.get("/timesheet/right-sidebar/list/:eventDate", getTimeSheetEventList);
 router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
 router.get("/employee_schedule/:employee_id", employeeSchedules);

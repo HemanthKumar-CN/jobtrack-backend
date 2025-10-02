@@ -182,6 +182,10 @@ module.exports = (sequelize, DataTypes) => {
     Schedule.belongsTo(models.EventLocationContractor, {
       foreignKey: "event_location_contractor_id",
     });
+    Schedule.hasOne(models.Timesheet, {
+      foreignKey: "schedule_id",
+      as: "timesheet",
+    });
   };
 
   return Schedule;

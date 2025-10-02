@@ -18,6 +18,7 @@ const {
   RecurringBlockedTime,
   ContractorClass,
   AdminConfig,
+  Timesheet,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -1375,9 +1376,23 @@ const updateSchedule = async (req, res) => {
     // Update only fields provided in request body
     await schedule.update({ ...updateData, status: "pending" });
 
+    // When schedule is updated and status is set to "pending",
+    // delete any existing timesheet record
+    const existingTimesheet = await Timesheet.findOne({
+      where: { schedule_id: schedule.id },
+    });
+
+    if (existingTimesheet) {
+      await existingTimesheet.destroy();
+      console.log(
+        `Timesheet deleted for schedule ID: ${schedule.id} due to schedule update`,
+      );
+    }
+
     return res.status(200).json({
       message: "Schedule updated successfully",
       data: schedule,
+      timesheet_deleted: !!existingTimesheet,
     });
   } catch (error) {
     console.error("❌ Error updating schedule:", error);
@@ -1969,6 +1984,863 @@ const getScheduledEventList = async (req, res) => {
   }
 };
 
+const getTimeSheetEventList = async (req, res) => {
+  try {
+    const { eventDate } = req.params;
+
+    // Step 1: Get all events for the date
+    const events = await Event.findAll({
+      where: {
+        start_date: { [Op.lte]: eventDate },
+        end_date: { [Op.gte]: eventDate },
+      },
+      order: [["start_date", "ASC"]],
+    });
+
+    if (events.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No events found for the specified date",
+        data: [],
+        total_events: 0,
+      });
+    }
+
+    const eventIds = events.map((event) => event.id);
+
+    // Step 2: Get all event locations for these events
+    const eventLocations = await EventLocation.findAll({
+      where: {
+        event_id: { [Op.in]: eventIds },
+      },
+      include: [
+        {
+          model: Location,
+          attributes: [
+            "id",
+            "name",
+            "address_1",
+            "city",
+            "state",
+            "colour_code",
+          ],
+        },
+      ],
+    });
+
+    const eventLocationIds = eventLocations.map((el) => el.id);
+
+    // Step 3: Get all event location contractors
+    const eventLocationContractors = await EventLocationContractor.findAll({
+      where: {
+        event_location_id: { [Op.in]: eventLocationIds },
+      },
+      include: [
+        {
+          model: Contractor,
+          attributes: [
+            "id",
+            "first_name",
+            "last_name",
+            "company_name",
+            "email",
+            "status",
+          ],
+        },
+      ],
+    });
+
+    const eventLocationContractorIds = eventLocationContractors.map(
+      (elc) => elc.id,
+    );
+
+    // Step 4: Get all contractor classes with classifications
+    const contractorClasses = await ContractorClass.findAll({
+      where: {
+        assignment_id: { [Op.in]: eventLocationContractorIds },
+      },
+      include: [
+        {
+          model: Classification,
+          as: "classification",
+          attributes: [
+            "id",
+            "abbreviation",
+            "description",
+            "status",
+            "order_number",
+          ],
+        },
+      ],
+    });
+
+    const contractorClassIds = contractorClasses.map((cc) => cc.id);
+
+    // Step 5: Get timesheet counts by status for each contractor class
+    // First get confirmed schedules for the date
+    const confirmedSchedules = await Schedule.findAll({
+      where: {
+        contractor_class_id: { [Op.in]: contractorClassIds },
+        is_deleted: false,
+        status: "confirmed",
+        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+      },
+      attributes: ["id", "contractor_class_id"],
+    });
+
+    const scheduleIds = confirmedSchedules.map((s) => s.id);
+    const scheduleToClassMap = {};
+    confirmedSchedules.forEach((s) => {
+      scheduleToClassMap[s.id] = s.contractor_class_id;
+    });
+
+    // Get timesheet counts by status
+    const timesheetCounts = await Timesheet.findAll({
+      where: {
+        schedule_id: { [Op.in]: scheduleIds },
+      },
+      attributes: ["schedule_id", "status", [fn("COUNT", col("id")), "count"]],
+      group: ["schedule_id", "status"],
+    });
+
+    console.log("Fetched Timesheet Counts:", timesheetCounts.length);
+
+    // Step 6: Create lookup maps for easy data association
+    const eventLocationsMap = {};
+    eventLocations.forEach((el) => {
+      if (!eventLocationsMap[el.event_id]) {
+        eventLocationsMap[el.event_id] = [];
+      }
+      eventLocationsMap[el.event_id].push(el);
+    });
+
+    const eventLocationContractorsMap = {};
+    eventLocationContractors.forEach((elc) => {
+      if (!eventLocationContractorsMap[elc.event_location_id]) {
+        eventLocationContractorsMap[elc.event_location_id] = [];
+      }
+      eventLocationContractorsMap[elc.event_location_id].push(elc);
+    });
+
+    const contractorClassesMap = {};
+    contractorClasses.forEach((cc) => {
+      if (!contractorClassesMap[cc.assignment_id]) {
+        contractorClassesMap[cc.assignment_id] = [];
+      }
+      contractorClassesMap[cc.assignment_id].push(cc);
+    });
+
+    // Create timesheet counts map by contractor_class_id
+    const timesheetCountsMap = {};
+    timesheetCounts.forEach((tc) => {
+      const scheduleId = tc.getDataValue("schedule_id");
+      const status = tc.getDataValue("status");
+      const count = parseInt(tc.getDataValue("count"));
+      const classId = scheduleToClassMap[scheduleId];
+
+      if (classId) {
+        if (!timesheetCountsMap[classId]) {
+          timesheetCountsMap[classId] = {
+            open: 0,
+            complete: 0,
+          };
+        }
+        timesheetCountsMap[classId][status] =
+          (timesheetCountsMap[classId][status] || 0) + count;
+      }
+    });
+
+    // Step 7: Transform the data to flat structure
+    const transformedData = [];
+
+    events.forEach((event) => {
+      const eventLocationsList = eventLocationsMap[event.id] || [];
+
+      eventLocationsList.forEach((eventLocation) => {
+        const eventLocationContractorsList =
+          eventLocationContractorsMap[eventLocation.id] || [];
+
+        eventLocationContractorsList.forEach((eventLocationContractor) => {
+          const contractorClassesList =
+            contractorClassesMap[eventLocationContractor.id] || [];
+
+          // Group classes by class_type for each contractor
+          const classTypes = {};
+          contractorClassesList.forEach((contractorClass) => {
+            const classType = contractorClass.class_type;
+            if (!classTypes[classType]) {
+              classTypes[classType] = [];
+            }
+
+            // Get timesheet counts for this contractor class
+            const timesheetCounts = timesheetCountsMap[contractorClass.id] || {
+              open: 0,
+              complete: 0,
+            };
+
+            classTypes[classType].push({
+              contractor_class_id: contractorClass.id,
+              classification_id: contractorClass.classification_id,
+              classification_abbreviation:
+                contractorClass.classification.abbreviation,
+              classification_order:
+                contractorClass.classification.order_number || null,
+              classification_description:
+                contractorClass.classification.description,
+              start_time: contractorClass.start_time,
+              end_time: contractorClass.end_time,
+              need_number: contractorClass.need_number,
+              timesheets: timesheetCounts, // Add timesheet counts here
+            });
+          });
+
+          // Create a single flat object for each event-location-contractor combination
+          transformedData.push({
+            // Event details
+            event_id: event.id,
+            event_name: event.event_name,
+            project_code: event.project_code,
+            project_comments: event.project_comments,
+            event_start_date: event.start_date,
+            event_end_date: event.end_date,
+
+            // Location details
+            event_location_id: eventLocation.id,
+            location_id: eventLocation.Location.id,
+            location_name: eventLocation.Location.name,
+            location_address: eventLocation.Location.address_1,
+            location_city: eventLocation.Location.city,
+            location_state: eventLocation.Location.state,
+            colour_code: eventLocation.Location.colour_code,
+
+            // Contractor details
+            event_location_contractor_id: eventLocationContractor.id,
+            contractor_id: eventLocationContractor.Contractor.id,
+            contractor_name: `${eventLocationContractor.Contractor.first_name} ${eventLocationContractor.Contractor.last_name}`,
+            contractor_company: eventLocationContractor.Contractor.company_name,
+            contractor_email: eventLocationContractor.Contractor.email,
+            contractor_status: eventLocationContractor.Contractor.status,
+            steward_id: eventLocationContractor.steward_id,
+
+            // Classes grouped by type with timesheet counts
+            class_types: {
+              regular: classTypes.regular || [],
+              in: classTypes.in || [],
+              out: classTypes.out || [],
+            },
+          });
+        });
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Timesheet events list retrieved successfully",
+      data: transformedData,
+      total_events: transformedData.length,
+    });
+  } catch (error) {
+    console.error("Error fetching timesheet events list:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
+const getTimesheetdata = async (req, res) => {
+  try {
+    const { eventDate } = req.params;
+
+    // Step 1: Get all timesheets for the specific date by joining with schedules
+    const timesheets = await Timesheet.findAll({
+      include: [
+        {
+          model: Schedule,
+          as: "schedule",
+          where: {
+            is_deleted: false,
+            [Op.and]: [
+              where(fn("DATE", col("schedule.start_time")), eventDate),
+            ],
+          },
+          include: [
+            {
+              model: Employee,
+              attributes: ["id"],
+              include: [
+                {
+                  model: User,
+                  attributes: ["id", "first_name", "last_name"],
+                },
+              ],
+            },
+            {
+              model: Event,
+              attributes: ["id", "event_name", "project_code", "event_type"],
+            },
+            {
+              model: ContractorClass,
+              include: [
+                {
+                  model: Classification,
+                  as: "classification",
+                  attributes: ["id", "abbreviation", "description"],
+                },
+                {
+                  model: EventLocationContractor,
+                  as: "assignment",
+                  include: [
+                    {
+                      model: EventLocation,
+                      include: [
+                        {
+                          model: Location,
+                          attributes: [
+                            "id",
+                            "name",
+                            "address_1",
+                            "city",
+                            "state",
+                            "colour_code",
+                          ],
+                        },
+                      ],
+                    },
+                    {
+                      model: Contractor,
+                      attributes: [
+                        "id",
+                        "first_name",
+                        "last_name",
+                        "company_name",
+                        "email",
+                        "status",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [
+        [
+          { model: Schedule, as: "schedule" },
+          { model: Event },
+          "event_name",
+          "ASC",
+        ],
+        [{ model: Schedule, as: "schedule" }, "start_time", "ASC"],
+      ],
+    });
+
+    console.log("Fetched Timesheets:", timesheets.length);
+
+    if (timesheets.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No timesheet data found for the specified date",
+        data: [],
+        total_events: 0,
+      });
+    }
+
+    // Step 2: Group timesheets by Event -> Location -> Contractor hierarchy
+    const groupedData = {};
+
+    timesheets.forEach((timesheet, index) => {
+      const schedule = timesheet.schedule;
+      const event = schedule.Event;
+      const contractorClass = schedule.ContractorClass;
+      const assignment = contractorClass.assignment;
+      const eventLocation = assignment.EventLocation;
+      const location = eventLocation.Location;
+      const contractor = assignment.Contractor;
+      const classification = contractorClass.classification;
+      const employee = schedule.Employee;
+      const user = employee.User;
+
+      // Create event group if doesn't exist
+      if (!groupedData[event.id]) {
+        groupedData[event.id] = {
+          event_id: event.id,
+          event_name: event.event_name,
+          project_code: event.project_code,
+          event_type: event.event_type,
+          locations: {},
+        };
+      }
+
+      // Create location group if doesn't exist
+      if (!groupedData[event.id].locations[location.id]) {
+        groupedData[event.id].locations[location.id] = {
+          location_id: location.id,
+          location_name: location.name,
+          location_address: location.address_1,
+          location_city: location.city,
+          location_state: location.state,
+          colour_code: location.colour_code,
+          contractors: {},
+        };
+      }
+
+      // Create contractor group if doesn't exist
+      if (
+        !groupedData[event.id].locations[location.id].contractors[contractor.id]
+      ) {
+        groupedData[event.id].locations[location.id].contractors[
+          contractor.id
+        ] = {
+          contractor_id: contractor.id,
+          contractor_name: `${contractor.first_name} ${contractor.last_name}`,
+          company_name: contractor.company_name,
+          contractor_email: contractor.email,
+          contractor_status: contractor.status,
+          employees: [],
+        };
+      }
+
+      // Add employee timesheet data
+      groupedData[event.id].locations[location.id].contractors[
+        contractor.id
+      ].employees.push({
+        sn: index + 1, // Serial number
+        employee_id: employee.id,
+        employee_name: `${user.first_name} ${user.last_name}`,
+        classification: {
+          id: classification.id,
+          abbreviation: classification.abbreviation,
+          description: classification.description,
+        },
+        start_time: schedule.start_time,
+        timesheet: {
+          id: timesheet.id,
+          actual_start: timesheet.actual_start,
+          end_time: timesheet.end_time,
+          st: timesheet.st,
+          ot: timesheet.ot,
+          dt: timesheet.dt,
+          status: timesheet.status,
+          created_at: timesheet.created_at,
+          updated_at: timesheet.updated_at,
+        },
+        schedule_id: schedule.id,
+      });
+    });
+
+    // Step 3: Transform grouped data to flat array structure
+    const transformedData = [];
+
+    Object.values(groupedData).forEach((event) => {
+      Object.values(event.locations).forEach((location) => {
+        Object.values(location.contractors).forEach((contractor) => {
+          transformedData.push({
+            event_id: event.event_id,
+            event_name: event.event_name,
+            project_code: event.project_code,
+            event_type: event.event_type,
+            location_id: location.location_id,
+            location_name: location.location_name,
+            location_address: location.location_address,
+            location_city: location.location_city,
+            location_state: location.location_state,
+            colour_code: location.colour_code,
+            contractor_id: contractor.contractor_id,
+            contractor_name: contractor.contractor_name,
+            company_name: contractor.company_name,
+            contractor_email: contractor.contractor_email,
+            contractor_status: contractor.contractor_status,
+            employees: contractor.employees,
+            total_employees: contractor.employees.length,
+          });
+        });
+      });
+    });
+
+    // Calculate timesheet status counts
+    const timesheetCounts = {
+      total: timesheets.length,
+      open: timesheets.filter((timesheet) => timesheet.status === "open")
+        .length,
+      complete: timesheets.filter(
+        (timesheet) => timesheet.status === "complete",
+      ).length,
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Timesheet data retrieved successfully",
+      data: transformedData,
+      total_events: transformedData.length,
+      total_timesheets: timesheets.length,
+      timesheet_counts: timesheetCounts,
+    });
+  } catch (error) {
+    console.error("Error fetching timesheet data:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
+const updateTimesheet = async (req, res) => {
+  try {
+    const { timesheetId } = req.params;
+    const { actual_start, end_time, st, ot, dt, status } = req.body;
+
+    // Validate timesheet ID
+    if (!timesheetId || isNaN(timesheetId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid timesheet ID provided",
+      });
+    }
+
+    // Find the timesheet
+    const timesheet = await Timesheet.findByPk(timesheetId, {
+      include: [
+        {
+          model: Schedule,
+          as: "schedule",
+          include: [
+            {
+              model: Employee,
+              include: [
+                {
+                  model: User,
+                  attributes: ["first_name", "last_name"],
+                },
+              ],
+            },
+            {
+              model: Event,
+              attributes: ["event_name"],
+            },
+          ],
+        },
+      ],
+    });
+
+    if (!timesheet) {
+      return res.status(404).json({
+        success: false,
+        message: "Timesheet not found",
+      });
+    }
+
+    // Prepare update data - only include fields that are provided
+    const updateData = {};
+
+    if (actual_start !== undefined) {
+      updateData.actual_start = actual_start;
+    }
+
+    if (end_time !== undefined) {
+      updateData.end_time = end_time;
+    }
+
+    if (st !== undefined) {
+      // Validate st is a valid number
+      if (isNaN(st) || st < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Straight Time (st) must be a valid positive number",
+        });
+      }
+      updateData.st = parseFloat(st);
+    }
+
+    if (ot !== undefined) {
+      // Validate ot is a valid number
+      if (isNaN(ot) || ot < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Overtime (ot) must be a valid positive number",
+        });
+      }
+      updateData.ot = parseFloat(ot);
+    }
+
+    if (dt !== undefined) {
+      // Validate dt is a valid number
+      if (isNaN(dt) || dt < 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Double Time (dt) must be a valid positive number",
+        });
+      }
+      updateData.dt = parseFloat(dt);
+    }
+
+    if (status !== undefined) {
+      // Validate status is either 'open' or 'complete'
+      if (!["open", "complete"].includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: "Status must be either 'open' or 'complete'",
+        });
+      }
+      updateData.status = status;
+    }
+
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No valid fields provided for update",
+      });
+    }
+
+    // Update the timesheet
+    await timesheet.update(updateData);
+
+    // Fetch the updated timesheet with all related data
+    const updatedTimesheet = await Timesheet.findByPk(timesheetId, {
+      include: [
+        {
+          model: Schedule,
+          as: "schedule",
+          include: [
+            {
+              model: Employee,
+              include: [
+                {
+                  model: User,
+                  attributes: ["first_name", "last_name"],
+                },
+              ],
+            },
+            {
+              model: Event,
+              attributes: ["event_name", "project_code"],
+            },
+            {
+              model: ContractorClass,
+              include: [
+                {
+                  model: Classification,
+                  as: "classification",
+                  attributes: ["abbreviation", "description"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Timesheet updated successfully",
+      data: {
+        timesheet: {
+          id: updatedTimesheet.id,
+          schedule_id: updatedTimesheet.schedule_id,
+          actual_start: updatedTimesheet.actual_start,
+          end_time: updatedTimesheet.end_time,
+          st: updatedTimesheet.st,
+          ot: updatedTimesheet.ot,
+          dt: updatedTimesheet.dt,
+          status: updatedTimesheet.status,
+          total_hours:
+            (updatedTimesheet.st || 0) +
+            (updatedTimesheet.ot || 0) +
+            (updatedTimesheet.dt || 0),
+          created_at: updatedTimesheet.created_at,
+          updated_at: updatedTimesheet.updated_at,
+        },
+        employee: {
+          name: `${updatedTimesheet.schedule.Employee.User.first_name} ${updatedTimesheet.schedule.Employee.User.last_name}`,
+        },
+        event: {
+          name: updatedTimesheet.schedule.Event.event_name,
+          project_code: updatedTimesheet.schedule.Event.project_code,
+        },
+        classification: {
+          abbreviation:
+            updatedTimesheet.schedule.ContractorClass.classification
+              .abbreviation,
+          description:
+            updatedTimesheet.schedule.ContractorClass.classification
+              .description,
+        },
+        schedule_start_time: updatedTimesheet.schedule.start_time,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating timesheet:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
+const updateBulkTimesheets = async (req, res) => {
+  try {
+    const { timesheets } = req.body;
+
+    // Validate input
+    if (!timesheets || !Array.isArray(timesheets) || timesheets.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Please provide an array of timesheets to update",
+      });
+    }
+
+    const updateResults = [];
+    const errors = [];
+
+    // Process each timesheet update
+    for (let i = 0; i < timesheets.length; i++) {
+      const timesheetData = timesheets[i];
+      const { timesheetId, actual_start, end_time, st, ot, dt, status } =
+        timesheetData;
+
+      try {
+        // Validate timesheet ID
+        if (!timesheetId || isNaN(timesheetId)) {
+          errors.push({
+            index: i,
+            timesheetId,
+            error: "Invalid timesheet ID provided",
+          });
+          continue;
+        }
+
+        // Find the timesheet
+        const timesheet = await Timesheet.findByPk(timesheetId);
+        if (!timesheet) {
+          errors.push({
+            index: i,
+            timesheetId,
+            error: "Timesheet not found",
+          });
+          continue;
+        }
+
+        // Prepare update data - only include fields that are provided
+        const updateData = {};
+
+        if (actual_start !== undefined) {
+          updateData.actual_start = actual_start;
+        }
+
+        if (end_time !== undefined) {
+          updateData.end_time = end_time;
+        }
+
+        if (st !== undefined) {
+          if (isNaN(st) || st < 0) {
+            errors.push({
+              index: i,
+              timesheetId,
+              error: "Straight Time (st) must be a valid positive number",
+            });
+            continue;
+          }
+          updateData.st = parseFloat(st);
+        }
+
+        if (ot !== undefined) {
+          if (isNaN(ot) || ot < 0) {
+            errors.push({
+              index: i,
+              timesheetId,
+              error: "Overtime (ot) must be a valid positive number",
+            });
+            continue;
+          }
+          updateData.ot = parseFloat(ot);
+        }
+
+        if (dt !== undefined) {
+          if (isNaN(dt) || dt < 0) {
+            errors.push({
+              index: i,
+              timesheetId,
+              error: "Double Time (dt) must be a valid positive number",
+            });
+            continue;
+          }
+          updateData.dt = parseFloat(dt);
+        }
+
+        if (status !== undefined) {
+          if (!["open", "complete"].includes(status)) {
+            errors.push({
+              index: i,
+              timesheetId,
+              error: "Status must be either 'open' or 'complete'",
+            });
+            continue;
+          }
+          updateData.status = status;
+        }
+
+        // Check if there's anything to update
+        if (Object.keys(updateData).length === 0) {
+          errors.push({
+            index: i,
+            timesheetId,
+            error: "No valid fields provided for update",
+          });
+          continue;
+        }
+
+        // Update the timesheet
+        await timesheet.update(updateData);
+
+        updateResults.push({
+          index: i,
+          timesheetId,
+          success: true,
+          updatedFields: Object.keys(updateData),
+        });
+      } catch (updateError) {
+        errors.push({
+          index: i,
+          timesheetId,
+          error: updateError.message,
+        });
+      }
+    }
+
+    // Prepare response
+    const response = {
+      success: errors.length === 0,
+      message:
+        errors.length === 0
+          ? "All timesheets updated successfully"
+          : `${updateResults.length} timesheets updated successfully, ${errors.length} failed`,
+      results: {
+        successful_updates: updateResults.length,
+        failed_updates: errors.length,
+        total_processed: timesheets.length,
+        updated_timesheets: updateResults,
+      },
+    };
+
+    if (errors.length > 0) {
+      response.errors = errors;
+    }
+
+    // Return appropriate status code
+    const statusCode =
+      errors.length === 0 ? 200 : updateResults.length > 0 ? 207 : 400;
+    res.status(statusCode).json(response);
+  } catch (error) {
+    console.error("Error in bulk timesheet update:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSchedule,
   createBulkSchedule,
@@ -1989,4 +2861,8 @@ module.exports = {
   getClassList,
   getLatestConfirmedAssignments,
   getScheduledEventList,
+  getTimeSheetEventList,
+  getTimesheetdata,
+  updateTimesheet,
+  updateBulkTimesheets,
 };
