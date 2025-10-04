@@ -2078,12 +2078,19 @@ const getTimeSheetEventList = async (req, res) => {
 
     // Step 5: Get timesheet counts by status for each contractor class
     // First get confirmed schedules for the date
+    // Create start and end of day for the given date to handle timezone properly
+    const startOfDay = moment.utc(eventDate).startOf("day").toDate();
+    const endOfDay = moment.utc(eventDate).endOf("day").toDate();
+
     const confirmedSchedules = await Schedule.findAll({
       where: {
         contractor_class_id: { [Op.in]: contractorClassIds },
         is_deleted: false,
         status: "confirmed",
-        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+        start_time: {
+          [Op.gte]: startOfDay,
+          [Op.lte]: endOfDay,
+        },
       },
       attributes: ["id", "contractor_class_id"],
     });
@@ -2252,6 +2259,13 @@ const getTimesheetdata = async (req, res) => {
   try {
     const { eventDate } = req.params;
 
+    // Create start and end of day for the given date to handle timezone properly
+    const startOfDay = moment.utc(eventDate).startOf("day").toDate();
+    const endOfDay = moment.utc(eventDate).endOf("day").toDate();
+
+    console.log(`Fetching timesheets for date: ${eventDate}`);
+    console.log(`UTC range: ${startOfDay} to ${endOfDay}`);
+
     // Step 1: Get all timesheets for the specific date by joining with schedules
     const timesheets = await Timesheet.findAll({
       include: [
@@ -2260,9 +2274,10 @@ const getTimesheetdata = async (req, res) => {
           as: "schedule",
           where: {
             is_deleted: false,
-            [Op.and]: [
-              where(fn("DATE", col("schedule.start_time")), eventDate),
-            ],
+            start_time: {
+              [Op.gte]: startOfDay,
+              [Op.lte]: endOfDay,
+            },
           },
           include: [
             {
