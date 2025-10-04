@@ -2267,7 +2267,7 @@ const getTimesheetdata = async (req, res) => {
           include: [
             {
               model: Employee,
-              attributes: ["id"],
+              attributes: ["id", "four"],
               include: [
                 {
                   model: User,
@@ -2409,6 +2409,7 @@ const getTimesheetdata = async (req, res) => {
         sn: index + 1, // Serial number
         employee_id: employee.id,
         employee_name: `${user.first_name} ${user.last_name}`,
+        four: employee.four, // Added four attribute
         classification: {
           id: classification.id,
           abbreviation: classification.abbreviation,

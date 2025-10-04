@@ -39,11 +39,11 @@ exports.userLogin = async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // ✅ Generate JWT with role_name
+    // ✅ Generate JWT with role_name (no expiration - only expires on logout)
     const token = jwt.sign(
       { userId: user.id, roleName: user.Role.name }, // ✅ Store roleName instead of role_id
       process.env.JWT_SECRET,
-      { expiresIn: "1h" },
+      // No expiration set - token will only be invalidated on logout
     );
 
     // ✅ Set JWT in cookies
