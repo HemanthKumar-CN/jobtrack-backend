@@ -269,6 +269,7 @@ const getAllEvents = async (req, res) => {
     }
 
     console.log("Order----:", order);
+    console.log("whereCondition:", whereCondition);
 
     const rawEvents = await Event.findAll({
       where: whereCondition,
