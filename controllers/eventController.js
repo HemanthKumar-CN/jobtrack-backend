@@ -244,19 +244,25 @@ const getAllEvents = async (req, res) => {
       whereCondition.id = eventFilter;
     }
 
-    // Tab-based filtering (current, past, future)
-    const today = moment().startOf("day");
+    // Fixed timezone handling - use UTC consistently
+    const todayUTC = moment.utc().startOf("day");
+    const endOfTodayUTC = moment.utc().endOf("day");
 
-    console.log(today, "++++++Today==");
+    console.log("UTC Today Start:", todayUTC.format());
+    console.log("UTC Today End:", endOfTodayUTC.format());
 
     if (tab === "Current") {
-      whereCondition.start_date = { [Op.lte]: today.toDate() };
-      whereCondition.end_date = { [Op.gte]: today.toDate() };
+      // Event is current if today falls between start_date and end_date (inclusive)
+      whereCondition.start_date = { [Op.lte]: endOfTodayUTC.toDate() };
+      whereCondition.end_date = { [Op.gte]: todayUTC.toDate() };
     } else if (tab === "Past") {
-      whereCondition.end_date = { [Op.lt]: today.toDate() };
+      // Event is past if end_date is before today
+      whereCondition.end_date = { [Op.lt]: todayUTC.toDate() };
     } else if (tab === "Future") {
-      whereCondition.start_date = { [Op.gt]: today.toDate() };
+      // Event is future if start_date is after today
+      whereCondition.start_date = { [Op.gt]: endOfTodayUTC.toDate() };
     }
+
     // Default sorting
     let order = [["start_date", "DESC"]];
 
@@ -303,21 +309,26 @@ const getAllEvents = async (req, res) => {
       order,
     });
 
-    // Add status: current/past/future to each event
+    // Add status using date-only comparison to avoid timezone issues
     const events = rawEvents.map((event) => {
-      const start = moment(event.start_date);
-      const end = moment(event.end_date);
+      // Extract date parts only (YYYY-MM-DD format)
+      const eventStartDate = moment.utc(event.start_date).format("YYYY-MM-DD");
+      const eventEndDate = moment.utc(event.end_date).format("YYYY-MM-DD");
+      const todayDate = moment.utc().format("YYYY-MM-DD");
 
       console.log(
-        "Event dates: ++++++Today==",
-        event.start_date,
-        event.end_date,
-        whereCondition,
+        "Date comparison - Start:",
+        eventStartDate,
+        "End:",
+        eventEndDate,
+        "Today:",
+        todayDate,
       );
+
       let status = "Future";
-      if (today.isBetween(start, end, undefined, "[]")) {
+      if (todayDate >= eventStartDate && todayDate <= eventEndDate) {
         status = "Current";
-      } else if (today.isAfter(end)) {
+      } else if (todayDate > eventEndDate) {
         status = "Past";
       }
 
