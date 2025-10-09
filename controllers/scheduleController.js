@@ -2258,6 +2258,7 @@ const getTimeSheetEventList = async (req, res) => {
 const getTimesheetdata = async (req, res) => {
   try {
     const { eventDate } = req.params;
+    const { search, fourNo, ges, contractor } = req.query; // Get all filter parameters
 
     // Create start and end of day for the given date to handle timezone properly
     const startOfDay = moment.utc(eventDate).startOf("day").toDate();
@@ -2267,33 +2268,38 @@ const getTimesheetdata = async (req, res) => {
     console.log(`UTC range: ${startOfDay} to ${endOfDay}`);
 
     // Step 1: Get all timesheets for the specific date by joining with schedules
+    let whereClause = {
+      is_deleted: false,
+      start_time: {
+        [Op.gte]: startOfDay,
+        [Op.lte]: endOfDay,
+      },
+    };
+
+    // Define includes without search filtering (we'll filter in JavaScript after fetching)
+    const userInclude = {
+      model: User,
+      attributes: ["id", "first_name", "last_name"],
+    };
+
+    const eventInclude = {
+      model: Event,
+      attributes: ["id", "event_name", "project_code", "event_type"],
+    };
+
     const timesheets = await Timesheet.findAll({
       include: [
         {
           model: Schedule,
           as: "schedule",
-          where: {
-            is_deleted: false,
-            start_time: {
-              [Op.gte]: startOfDay,
-              [Op.lte]: endOfDay,
-            },
-          },
+          where: whereClause,
           include: [
             {
               model: Employee,
-              attributes: ["id", "four"],
-              include: [
-                {
-                  model: User,
-                  attributes: ["id", "first_name", "last_name"],
-                },
-              ],
+              attributes: ["id", "four", "ges"],
+              include: [userInclude],
             },
-            {
-              model: Event,
-              attributes: ["id", "event_name", "project_code", "event_type"],
-            },
+            eventInclude,
             {
               model: ContractorClass,
               include: [
@@ -2353,7 +2359,86 @@ const getTimesheetdata = async (req, res) => {
 
     console.log("Fetched Timesheets:", timesheets.length);
 
-    if (timesheets.length === 0) {
+    // Filter timesheets based on search criteria and other filters
+    let filteredTimesheets = timesheets;
+
+    // Apply filters
+    if (search || fourNo || ges || contractor) {
+      filteredTimesheets = timesheets.filter((timesheet) => {
+        const schedule = timesheet.schedule;
+        const employee = schedule?.Employee;
+        const user = employee?.User;
+        const event = schedule?.Event;
+        const contractorClass = schedule?.ContractorClass;
+        const assignment = contractorClass?.assignment;
+        const contractorData = assignment?.Contractor;
+
+        let passesFilters = true;
+
+        // Search filter (first_name, last_name, event_name)
+        if (search && search.trim()) {
+          const matchesUser =
+            user &&
+            ((user.first_name &&
+              user.first_name
+                .toLowerCase()
+                .includes(search.trim().toLowerCase())) ||
+              (user.last_name &&
+                user.last_name
+                  .toLowerCase()
+                  .includes(search.trim().toLowerCase())));
+
+          const matchesEvent =
+            event &&
+            event.event_name &&
+            event.event_name
+              .toLowerCase()
+              .includes(search.trim().toLowerCase());
+
+          if (!(matchesUser || matchesEvent)) {
+            passesFilters = false;
+          }
+        }
+
+        // Four filter
+        if (fourNo && fourNo.trim() && passesFilters) {
+          const matchesFour =
+            employee?.four &&
+            employee.four.toLowerCase().includes(fourNo.trim().toLowerCase());
+          if (!matchesFour) {
+            passesFilters = false;
+          }
+        }
+
+        // GES filter
+        if (ges && ges.trim() && passesFilters) {
+          const matchesGes =
+            employee?.ges &&
+            employee.ges.toLowerCase().includes(ges.trim().toLowerCase());
+          if (!matchesGes) {
+            passesFilters = false;
+          }
+        }
+
+        // Contractor filter
+        if (contractor && contractor.trim() && passesFilters) {
+          const matchesContractor =
+            contractorData?.company_name &&
+            contractorData.company_name
+              .toLowerCase()
+              .includes(contractor.trim().toLowerCase());
+          if (!matchesContractor) {
+            passesFilters = false;
+          }
+        }
+
+        return passesFilters;
+      });
+    }
+
+    console.log("Filtered Timesheets:", filteredTimesheets.length);
+
+    if (filteredTimesheets.length === 0) {
       return res.status(200).json({
         success: true,
         message: "No timesheet data found for the specified date",
@@ -2365,17 +2450,84 @@ const getTimesheetdata = async (req, res) => {
     // Step 2: Group timesheets by Event -> Location -> Contractor hierarchy
     const groupedData = {};
 
-    timesheets.forEach((timesheet, index) => {
+    filteredTimesheets.forEach((timesheet, index) => {
       const schedule = timesheet.schedule;
+      if (!schedule) {
+        console.warn(`Skipping timesheet ${timesheet.id} - Schedule not found`);
+        return;
+      }
+
       const event = schedule.Event;
+      if (!event) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Event not found for schedule ${schedule.id}`,
+        );
+        return;
+      }
+
       const contractorClass = schedule.ContractorClass;
+      if (!contractorClass) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - ContractorClass not found for schedule ${schedule.id}`,
+        );
+        return;
+      }
+
       const assignment = contractorClass.assignment;
+      if (!assignment) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Assignment not found for contractor class ${contractorClass.id}`,
+        );
+        return;
+      }
+
       const eventLocation = assignment.EventLocation;
+      if (!eventLocation) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - EventLocation not found for assignment ${assignment.id}`,
+        );
+        return;
+      }
+
       const location = eventLocation.Location;
+      if (!location) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Location not found for event location ${eventLocation.id}`,
+        );
+        return;
+      }
+
       const contractor = assignment.Contractor;
+      if (!contractor) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Contractor not found for assignment ${assignment.id}`,
+        );
+        return;
+      }
+
       const classification = contractorClass.classification;
+      if (!classification) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Classification not found for contractor class ${contractorClass.id}`,
+        );
+        return;
+      }
+
       const employee = schedule.Employee;
+      if (!employee) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - Employee not found for schedule ${schedule.id}`,
+        );
+        return;
+      }
+
       const user = employee.User;
+      if (!user) {
+        console.warn(
+          `Skipping timesheet ${timesheet.id} - User not found for employee ${employee.id}`,
+        );
+        return;
+      }
 
       // Create event group if doesn't exist
       if (!groupedData[event.id]) {
@@ -2425,6 +2577,7 @@ const getTimesheetdata = async (req, res) => {
         employee_id: employee.id,
         employee_name: `${user.first_name} ${user.last_name}`,
         four: employee.four, // Added four attribute
+        ges: employee.ges, // Added ges attribute
         classification: {
           id: classification.id,
           abbreviation: classification.abbreviation,
@@ -2477,21 +2630,43 @@ const getTimesheetdata = async (req, res) => {
 
     // Calculate timesheet status counts
     const timesheetCounts = {
-      total: timesheets.length,
-      open: timesheets.filter((timesheet) => timesheet.status === "open")
-        .length,
-      complete: timesheets.filter(
+      total: filteredTimesheets.length,
+      open: filteredTimesheets.filter(
+        (timesheet) => timesheet.status === "open",
+      ).length,
+      complete: filteredTimesheets.filter(
         (timesheet) => timesheet.status === "complete",
       ).length,
     };
 
+    // Build filter summary for response message
+    const appliedFilters = [];
+    if (search && search.trim())
+      appliedFilters.push(`search: "${search.trim()}"`);
+    if (fourNo && fourNo.trim())
+      appliedFilters.push(`fourNo: "${fourNo.trim()}"`);
+    if (ges && ges.trim()) appliedFilters.push(`ges: "${ges.trim()}"`);
+    if (contractor && contractor.trim())
+      appliedFilters.push(`contractor: "${contractor.trim()}"`);
+
+    const filterMessage =
+      appliedFilters.length > 0
+        ? ` (filtered by: ${appliedFilters.join(", ")})`
+        : "";
+
     res.status(200).json({
       success: true,
-      message: "Timesheet data retrieved successfully",
+      message: `Timesheet data retrieved successfully${filterMessage}`,
       data: transformedData,
       total_events: transformedData.length,
-      total_timesheets: timesheets.length,
+      total_timesheets: filteredTimesheets.length,
       timesheet_counts: timesheetCounts,
+      filters_applied: {
+        search: search && search.trim() ? search.trim() : null,
+        fourNo: fourNo && fourNo.trim() ? fourNo.trim() : null,
+        ges: ges && ges.trim() ? ges.trim() : null,
+        contractor: contractor && contractor.trim() ? contractor.trim() : null,
+      },
     });
   } catch (error) {
     console.error("Error fetching timesheet data:", error);
