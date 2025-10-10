@@ -116,6 +116,7 @@ const createEvent = async (req, res) => {
       end_date,
       locations,
       event_type,
+      status = "active", // Default to active if not provided
     } = req.body;
 
     if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
@@ -131,6 +132,7 @@ const createEvent = async (req, res) => {
         start_date: moment(start_date).toDate(),
         end_date: moment(end_date).toDate(),
         event_type,
+        status,
       },
       { transaction: t },
     );
@@ -240,6 +242,9 @@ const getAllEvents = async (req, res) => {
       };
     }
 
+    // Only get active events
+    whereCondition.status = "active";
+
     if (eventFilter) {
       whereCondition.id = eventFilter;
     }
@@ -348,6 +353,7 @@ const getAllEvents = async (req, res) => {
 const getEventList = async (req, res) => {
   try {
     const events = await Event.findAll({
+      where: { status: "active" }, // Only get active events
       attributes: ["id", "event_name"],
       order: [["event_name", "ASC"]], // Optional: sort alphabetically
     });
@@ -365,7 +371,7 @@ const getEventById = async (req, res) => {
 
     // Step 1: fetch the event itself
     const event = await Event.findOne({
-      where: { id },
+      where: { id, status: "active" }, // Only get active events
       attributes: [
         "id",
         "event_name",
@@ -374,6 +380,7 @@ const getEventById = async (req, res) => {
         "start_date",
         "end_date",
         "event_type",
+        "status",
       ],
     });
 
@@ -643,6 +650,7 @@ const updateEvent = async (req, res) => {
       end_date,
       locations,
       event_type,
+      status = "active", // Default to active if not provided
     } = req.body;
 
     // 🔎 Validate required fields
@@ -660,6 +668,7 @@ const updateEvent = async (req, res) => {
         start_date,
         end_date,
         event_type,
+        status,
       },
       { where: { id }, transaction: t },
     );
@@ -841,8 +850,15 @@ const getActiveEventLocations = async (req, res) => {
               where: {
                 start_date: { [Op.lte]: date }, // start_date <= date
                 end_date: { [Op.gte]: date }, // end_date >= date
+                status: "active", // Only get active events
               },
-              attributes: ["id", "event_name", "start_date", "end_date"],
+              attributes: [
+                "id",
+                "event_name",
+                "start_date",
+                "end_date",
+                "status",
+              ],
             },
           ],
           attributes: ["id", "event_id"],
