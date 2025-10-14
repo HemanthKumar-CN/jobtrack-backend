@@ -549,6 +549,8 @@ const getSchedules = async (req, res) => {
       search,
       capacity,
       classification_id,
+      contractor,
+      type,
     } = req.query;
     const date = req.params.date;
 
@@ -585,6 +587,14 @@ const getSchedules = async (req, res) => {
 
     if (classification_id) {
       whereClause["$ContractorClass.classification_id$"] = classification_id;
+    }
+
+    if (contractor) {
+      whereClause["$EventLocationContractor.contractor_id$"] = contractor;
+    }
+
+    if (type) {
+      whereClause["$ContractorClass.class_type$"] = type;
     }
 
     const userWhereClause = {};
