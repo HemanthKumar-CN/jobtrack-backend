@@ -1448,17 +1448,107 @@ const checkEmployeeAvailability = async (req, res) => {
 
 // Soft Delete Schedule
 const deleteSchedule = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const { id } = req.params;
-    const schedule = await Schedule.findByPk(id);
-    if (!schedule) return res.status(404).json({ error: "Schedule not found" });
 
-    schedule.is_deleted = true;
-    await schedule.save();
+    // Validate schedule ID
+    if (!id || isNaN(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid schedule ID provided",
+      });
+    }
 
-    res.status(204).send();
+    // Find schedule with transaction
+    const schedule = await Schedule.findByPk(id, { transaction });
+    if (!schedule) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        error: "Schedule not found",
+      });
+    }
+
+    // Check if schedule is already deleted
+    if (schedule.is_deleted) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        error: "Schedule has already been deleted",
+      });
+    }
+
+    let timesheetDeleted = false;
+    let timesheetId = null;
+
+    // Check if schedule status is confirmed, then delete associated timesheet
+    if (schedule.status === "confirmed") {
+      const existingTimesheet = await Timesheet.findOne({
+        where: { schedule_id: schedule.id },
+        transaction,
+      });
+
+      if (existingTimesheet) {
+        timesheetId = existingTimesheet.id;
+        await existingTimesheet.destroy({ transaction });
+        timesheetDeleted = true;
+        console.log(
+          `Timesheet (ID: ${timesheetId}) deleted for schedule ID: ${schedule.id} due to schedule deletion`,
+        );
+      }
+    }
+
+    // Perform soft delete on schedule
+    await schedule.update({ is_deleted: true }, { transaction });
+
+    // Commit transaction
+    await transaction.commit();
+
+    console.log(`Schedule (ID: ${schedule.id}) successfully soft deleted`);
+
+    // Return success response with details
+    res.status(200).json({
+      success: true,
+      message: "Schedule deleted successfully",
+      data: {
+        schedule_id: schedule.id,
+        schedule_status: schedule.status,
+        timesheet_deleted: timesheetDeleted,
+        timesheet_id: timesheetId,
+        deleted_at: new Date().toISOString(),
+      },
+    });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    // Rollback transaction on error
+    await transaction.rollback();
+
+    console.error("Error deleting schedule:", error);
+
+    // Handle specific database errors
+    if (error.name === "SequelizeValidationError") {
+      return res.status(400).json({
+        success: false,
+        error: "Validation error occurred while deleting schedule",
+        details: error.errors?.map((e) => e.message) || [],
+      });
+    }
+
+    if (error.name === "SequelizeDatabaseError") {
+      return res.status(500).json({
+        success: false,
+        error: "Database error occurred while deleting schedule",
+        details: "Please contact support if this issue persists",
+      });
+    }
+
+    // Generic error response
+    res.status(500).json({
+      success: false,
+      error: "Failed to delete schedule",
+      details: error.message,
+    });
   }
 };
 
