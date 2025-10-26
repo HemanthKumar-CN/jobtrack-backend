@@ -761,12 +761,26 @@ const getSchedules = async (req, res) => {
 
 const getLatestConfirmedAssignments = async (req, res) => {
   try {
-    const { employeeIds } = req.body;
+    const { employeeIds, todayDate } = req.body;
+
+    // Calculate previous day from todayDate
+    const previousDay = moment(todayDate)
+      .subtract(1, "day")
+      .format("YYYY-MM-DD");
+    const startOfPreviousDay = moment(previousDay).startOf("day").toDate();
+    const endOfPreviousDay = moment(previousDay).endOf("day").toDate();
+
+    console.log(`Looking for assignments on previous day: ${previousDay}`);
+    console.log(`UTC range: ${startOfPreviousDay} to ${endOfPreviousDay}`);
 
     const assignments = await Schedule.findAll({
       where: {
         employee_id: { [Op.in]: employeeIds },
         status: "confirmed",
+        start_time: {
+          [Op.gte]: startOfPreviousDay,
+          [Op.lte]: endOfPreviousDay,
+        },
       },
       include: [
         { model: Event, attributes: ["event_name", "id"] },
@@ -801,7 +815,7 @@ const getLatestConfirmedAssignments = async (req, res) => {
       // raw: true,
     });
 
-    console.log(assignments, "Latest confirmed assignments");
+    console.log(assignments, "Latest confirmed assignments from previous day");
 
     // Group by employee_id and return only latest per employee
     const grouped = {};
