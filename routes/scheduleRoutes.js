@@ -24,6 +24,7 @@ const {
   getTimesheetdata,
   updateTimesheet,
   updateBulkTimesheets,
+  getEventView,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
@@ -37,6 +38,7 @@ router.get(
   "/event-schedule/right-sidebar/list/:eventDate",
   getScheduledEventList,
 );
+router.get("/event-view/:eventDate", getEventView);
 router.get("/timesheet/eventList/:eventDate", getTimesheetdata);
 router.put("/timesheet/:timesheetId", updateTimesheet);
 router.put("/timesheet/bulk/update", updateBulkTimesheets);

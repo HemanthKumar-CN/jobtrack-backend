@@ -3146,6 +3146,301 @@ const updateBulkTimesheets = async (req, res) => {
   }
 };
 
+const getEventView = async (req, res) => {
+  try {
+    const { eventDate } = req.params;
+
+    // Step 1: Get all schedules for the specified date with all related data
+    const schedules = await Schedule.findAll({
+      where: {
+        is_deleted: false,
+        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+      },
+      include: [
+        {
+          model: Employee,
+          attributes: ["id", "snf"],
+          include: [
+            {
+              model: User,
+              attributes: ["first_name", "last_name"],
+            },
+          ],
+        },
+        {
+          model: Event,
+          attributes: [
+            "id",
+            "event_name",
+            "project_code",
+            "project_comments",
+            "start_date",
+            "end_date",
+          ],
+        },
+        {
+          model: ContractorClass,
+          attributes: [
+            "id",
+            "class_type",
+            "start_time",
+            "end_time",
+            "need_number",
+          ],
+          include: [
+            {
+              model: Classification,
+              as: "classification",
+              attributes: [
+                "id",
+                "abbreviation",
+                "description",
+                "status",
+                "order_number",
+              ],
+            },
+            {
+              model: EventLocationContractor,
+              as: "assignment",
+              attributes: ["id", "steward_id"],
+              include: [
+                {
+                  model: Contractor,
+                  attributes: [
+                    "id",
+                    "first_name",
+                    "last_name",
+                    "company_name",
+                    "email",
+                    "status",
+                  ],
+                },
+                {
+                  model: EventLocation,
+                  attributes: ["id"],
+                  include: [
+                    {
+                      model: Location,
+                      attributes: [
+                        "id",
+                        "name",
+                        "address_1",
+                        "city",
+                        "state",
+                        "colour_code",
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      order: [["start_time", "ASC"]],
+    });
+
+    if (schedules.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No schedules found for the specified date",
+        data: [],
+        total_schedules: 0,
+      });
+    }
+
+    // Step 2: Group schedules by Event -> Location -> Contractor -> Classification
+    const groupedData = {};
+
+    schedules.forEach((schedule) => {
+      const event = schedule.Event;
+      const contractorClass = schedule.ContractorClass;
+      const assignment = contractorClass?.assignment;
+      const contractor = assignment?.Contractor;
+      const eventLocation = assignment?.EventLocation;
+      const location = eventLocation?.Location;
+      const classification = contractorClass?.classification;
+      const employee = schedule.Employee;
+      const user = employee?.User;
+
+      if (
+        !event ||
+        !contractorClass ||
+        !assignment ||
+        !contractor ||
+        !location ||
+        !classification ||
+        !employee ||
+        !user
+      ) {
+        return; // Skip incomplete data
+      }
+
+      // Create event group if doesn't exist
+      if (!groupedData[event.id]) {
+        groupedData[event.id] = {
+          event_id: event.id,
+          event_name: event.event_name,
+          project_code: event.project_code,
+          project_comments: event.project_comments,
+          event_start_date: event.start_date,
+          event_end_date: event.end_date,
+          locations: {},
+        };
+      }
+
+      // Create location group if doesn't exist
+      if (!groupedData[event.id].locations[location.id]) {
+        groupedData[event.id].locations[location.id] = {
+          event_location_id: eventLocation.id,
+          location_id: location.id,
+          location_name: location.name,
+          location_address: location.address_1,
+          location_city: location.city,
+          location_state: location.state,
+          colour_code: location.colour_code,
+          contractors: {},
+        };
+      }
+
+      // Create contractor group if doesn't exist
+      if (
+        !groupedData[event.id].locations[location.id].contractors[contractor.id]
+      ) {
+        groupedData[event.id].locations[location.id].contractors[
+          contractor.id
+        ] = {
+          event_location_contractor_id: assignment.id,
+          contractor_id: contractor.id,
+          contractor_name: `${contractor.first_name} ${contractor.last_name}`,
+          contractor_company: contractor.company_name,
+          contractor_email: contractor.email,
+          contractor_status: contractor.status,
+          steward_id: assignment.steward_id,
+          class_types: {
+            regular: {},
+            in: {},
+            out: {},
+          },
+        };
+      }
+
+      const contractorGroup =
+        groupedData[event.id].locations[location.id].contractors[contractor.id];
+      const classType = contractorClass.class_type;
+
+      // Create classification group if doesn't exist
+      if (!contractorGroup.class_types[classType][classification.id]) {
+        contractorGroup.class_types[classType][classification.id] = {
+          contractor_class_id: contractorClass.id,
+          classification_id: classification.id,
+          classification_abbreviation: classification.abbreviation,
+          classification_order: classification.order_number || null,
+          classification_description: classification.description,
+          classification_status: classification.status,
+          start_time: contractorClass.start_time,
+          end_time: contractorClass.end_time,
+          need_number: contractorClass.need_number,
+          schedules: {
+            pending: 0,
+            confirmed: 0,
+            declined: 0,
+          },
+          scheduled_employees: [],
+        };
+      }
+
+      const classGroup =
+        contractorGroup.class_types[classType][classification.id];
+
+      // Add schedule count
+      classGroup.schedules[schedule.status]++;
+
+      // Add employee to the scheduled list
+      classGroup.scheduled_employees.push({
+        schedule_id: schedule.id,
+        employee_id: employee.id,
+        employee_name: `${user.first_name} ${user.last_name}`,
+        snf: employee.snf,
+        status: schedule.status,
+        start_time: schedule.start_time,
+        comments: schedule.comments,
+        responded_at: schedule.responded_at,
+      });
+    });
+
+    // Step 3: Transform to flat array structure
+    const transformedData = [];
+
+    Object.values(groupedData).forEach((event) => {
+      Object.values(event.locations).forEach((location) => {
+        Object.values(location.contractors).forEach((contractor) => {
+          // Convert class_types object to arrays
+          const classTypes = {
+            regular: Object.values(contractor.class_types.regular),
+            in: Object.values(contractor.class_types.in),
+            out: Object.values(contractor.class_types.out),
+          };
+
+          // Only include if there are any schedules
+          const hasSchedules =
+            classTypes.regular.length > 0 ||
+            classTypes.in.length > 0 ||
+            classTypes.out.length > 0;
+
+          if (hasSchedules) {
+            transformedData.push({
+              // Event details
+              event_id: event.event_id,
+              event_name: event.event_name,
+              project_code: event.project_code,
+              project_comments: event.project_comments,
+              event_start_date: event.event_start_date,
+              event_end_date: event.event_end_date,
+
+              // Location details
+              event_location_id: location.event_location_id,
+              location_id: location.location_id,
+              location_name: location.location_name,
+              location_address: location.location_address,
+              location_city: location.location_city,
+              location_state: location.location_state,
+              colour_code: location.colour_code,
+
+              // Contractor details
+              event_location_contractor_id:
+                contractor.event_location_contractor_id,
+              contractor_id: contractor.contractor_id,
+              contractor_name: contractor.contractor_name,
+              contractor_company: contractor.contractor_company,
+              contractor_email: contractor.contractor_email,
+              contractor_status: contractor.contractor_status,
+              steward_id: contractor.steward_id,
+
+              // Classes with individual schedules
+              class_types: classTypes,
+            });
+          }
+        });
+      });
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Event view data retrieved successfully",
+      data: transformedData,
+      total_items: transformedData.length,
+      total_schedules: schedules.length,
+    });
+  } catch (error) {
+    console.error("Error fetching event view data:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   createSchedule,
   createBulkSchedule,
@@ -3170,4 +3465,5 @@ module.exports = {
   getTimesheetdata,
   updateTimesheet,
   updateBulkTimesheets,
+  getEventView,
 };
