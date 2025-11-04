@@ -3159,7 +3159,7 @@ const getEventView = async (req, res) => {
       include: [
         {
           model: Employee,
-          attributes: ["id", "snf"],
+          attributes: ["id", "snf", "type"],
           include: [
             {
               model: User,
@@ -3362,6 +3362,7 @@ const getEventView = async (req, res) => {
         employee_id: employee.id,
         employee_name: `${user.first_name} ${user.last_name}`,
         snf: employee.snf,
+        type: employee.type,
         status: schedule.status,
         start_time: schedule.start_time,
         comments: schedule.comments,
