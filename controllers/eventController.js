@@ -249,23 +249,21 @@ const getAllEvents = async (req, res) => {
       whereCondition.id = eventFilter;
     }
 
-    // Fixed timezone handling - use UTC consistently
-    const todayUTC = moment.utc().startOf("day");
-    const endOfTodayUTC = moment.utc().endOf("day");
+    // Use date strings for DATEONLY comparison
+    const todayDate = moment.utc().format("YYYY-MM-DD");
 
-    console.log("UTC Today Start:", todayUTC.format());
-    console.log("UTC Today End:", endOfTodayUTC.format());
+    console.log("Today Date:", todayDate);
 
     if (tab === "Current") {
       // Event is current if today falls between start_date and end_date (inclusive)
-      whereCondition.start_date = { [Op.lte]: endOfTodayUTC.toDate() };
-      whereCondition.end_date = { [Op.gte]: todayUTC.toDate() };
+      whereCondition.start_date = { [Op.lte]: todayDate };
+      whereCondition.end_date = { [Op.gte]: todayDate };
     } else if (tab === "Past") {
       // Event is past if end_date is before today
-      whereCondition.end_date = { [Op.lt]: todayUTC.toDate() };
+      whereCondition.end_date = { [Op.lt]: todayDate };
     } else if (tab === "Future") {
       // Event is future if start_date is after today
-      whereCondition.start_date = { [Op.gt]: endOfTodayUTC.toDate() };
+      whereCondition.start_date = { [Op.gt]: todayDate };
     }
 
     // Default sorting
@@ -314,11 +312,11 @@ const getAllEvents = async (req, res) => {
       order,
     });
 
-    // Add status using date-only comparison to avoid timezone issues
+    // Add status using date-only comparison
     const events = rawEvents.map((event) => {
-      // Extract date parts only (YYYY-MM-DD format)
-      const eventStartDate = moment.utc(event.start_date).format("YYYY-MM-DD");
-      const eventEndDate = moment.utc(event.end_date).format("YYYY-MM-DD");
+      // Since we're using DATEONLY, the dates are already in YYYY-MM-DD format
+      const eventStartDate = event.start_date;
+      const eventEndDate = event.end_date;
       const todayDate = moment.utc().format("YYYY-MM-DD");
 
       console.log(
