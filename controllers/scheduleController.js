@@ -3149,13 +3149,22 @@ const updateBulkTimesheets = async (req, res) => {
 const getEventView = async (req, res) => {
   try {
     const { eventDate } = req.params;
+    const { tab } = req.query;
+
+    // Build where clause for schedule status filtering
+    const whereClause = {
+      is_deleted: false,
+      [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+    };
+
+    // Filter by status if tab parameter is provided
+    if (tab && ["pending", "confirmed", "declined"].includes(tab)) {
+      whereClause.status = tab;
+    }
 
     // Step 1: Get all schedules for the specified date with all related data
     const schedules = await Schedule.findAll({
-      where: {
-        is_deleted: false,
-        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
-      },
+      where: whereClause,
       include: [
         {
           model: Employee,
