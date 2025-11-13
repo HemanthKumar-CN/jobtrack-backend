@@ -1744,7 +1744,7 @@ exports.getEmployeesList = async (req, res) => {
       where: {
         status: "active",
       },
-      order: [["createdAt", "DESC"]], // Optional: Order by latest created
+      order: [[{ model: User, as: "User" }, "first_name", "ASC"]], // Sort by User's first_name in ascending order
       attributes: ["id", "user_id", "type"], // Only get specific columns
     });
 
