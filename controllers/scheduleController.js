@@ -2743,25 +2743,30 @@ const getTimesheetdata = async (req, res) => {
     });
 
     // Step 4: Apply sorting if requested
-    if (sortBy && ['event_name', 'location_name', 'company_name'].includes(sortBy)) {
-      const order = sortOrder === 'desc' ? -1 : 1; // Default to ascending
+    if (
+      sortBy &&
+      ["event_name", "location_name", "company_name"].includes(sortBy)
+    ) {
+      const order = sortOrder === "desc" ? -1 : 1; // Default to ascending
 
       transformedData.sort((a, b) => {
         let valueA, valueB;
 
-        if (sortBy === 'event_name') {
-          valueA = a.event_name || '';
-          valueB = b.event_name || '';
-        } else if (sortBy === 'location_name') {
-          valueA = a.location_name || '';
-          valueB = b.location_name || '';
-        } else if (sortBy === 'company_name') {
-          valueA = a.company_name || '';
-          valueB = b.company_name || '';
+        if (sortBy === "event_name") {
+          valueA = a.event_name || "";
+          valueB = b.event_name || "";
+        } else if (sortBy === "location_name") {
+          valueA = a.location_name || "";
+          valueB = b.location_name || "";
+        } else if (sortBy === "company_name") {
+          valueA = a.company_name || "";
+          valueB = b.company_name || "";
         }
 
         // Case-insensitive string comparison
-        const comparison = valueA.toLowerCase().localeCompare(valueB.toLowerCase());
+        const comparison = valueA
+          .toLowerCase()
+          .localeCompare(valueB.toLowerCase());
         return comparison * order;
       });
     }
