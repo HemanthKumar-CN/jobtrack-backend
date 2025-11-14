@@ -2372,7 +2372,7 @@ const getTimeSheetEventList = async (req, res) => {
 const getTimesheetdata = async (req, res) => {
   try {
     const { eventDate } = req.params;
-    const { search, fourNo, ges, contractor } = req.query; // Get all filter parameters
+    const { search, fourNo, ges, contractor, sortBy, sortOrder } = req.query; // Get all filter parameters including sort
 
     // Create start and end of day for the given date to handle timezone properly
     const startOfDay = moment.utc(eventDate).startOf("day").toDate();
@@ -2741,6 +2741,30 @@ const getTimesheetdata = async (req, res) => {
         });
       });
     });
+
+    // Step 4: Apply sorting if requested
+    if (sortBy && ['event_name', 'location_name', 'company_name'].includes(sortBy)) {
+      const order = sortOrder === 'desc' ? -1 : 1; // Default to ascending
+
+      transformedData.sort((a, b) => {
+        let valueA, valueB;
+
+        if (sortBy === 'event_name') {
+          valueA = a.event_name || '';
+          valueB = b.event_name || '';
+        } else if (sortBy === 'location_name') {
+          valueA = a.location_name || '';
+          valueB = b.location_name || '';
+        } else if (sortBy === 'company_name') {
+          valueA = a.company_name || '';
+          valueB = b.company_name || '';
+        }
+
+        // Case-insensitive string comparison
+        const comparison = valueA.toLowerCase().localeCompare(valueB.toLowerCase());
+        return comparison * order;
+      });
+    }
 
     // Calculate timesheet status counts
     const timesheetCounts = {
@@ -3149,7 +3173,7 @@ const updateBulkTimesheets = async (req, res) => {
 const getEventView = async (req, res) => {
   try {
     const { eventDate } = req.params;
-    const { tab } = req.query;
+    const { tab, search, sort_by, sort_order } = req.query;
 
     // Build where clause for schedule status filtering
     const whereClause = {
@@ -3162,6 +3186,25 @@ const getEventView = async (req, res) => {
       whereClause.status = tab;
     }
 
+    // Build user where clause for search filtering
+    const userWhereClause = {};
+    if (search) {
+      userWhereClause[Op.or] = [
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    // Validate sort parameters
+    const validSortFields = ["event_name", "location", "contractor"];
+    const validSortOrders = ["asc", "desc"];
+    const sortField = validSortFields.includes(sort_by)
+      ? sort_by
+      : "event_name";
+    const sortDirection = validSortOrders.includes(sort_order)
+      ? sort_order
+      : "asc";
+
     // Step 1: Get all schedules for the specified date with all related data
     const schedules = await Schedule.findAll({
       where: whereClause,
@@ -3169,10 +3212,12 @@ const getEventView = async (req, res) => {
         {
           model: Employee,
           attributes: ["id", "snf", "type"],
+          required: !!search,
           include: [
             {
               model: User,
               attributes: ["first_name", "last_name"],
+              ...(search && { where: userWhereClause, required: true }),
             },
           ],
         },
@@ -3435,12 +3480,43 @@ const getEventView = async (req, res) => {
       });
     });
 
+    // Step 4: Apply sorting to transformed data
+    transformedData.sort((a, b) => {
+      let compareA, compareB;
+
+      switch (sortField) {
+        case "event_name":
+          compareA = a.event_name?.toLowerCase() || "";
+          compareB = b.event_name?.toLowerCase() || "";
+          break;
+        case "location":
+          compareA = a.location_name?.toLowerCase() || "";
+          compareB = b.location_name?.toLowerCase() || "";
+          break;
+        case "contractor":
+          compareA = a.contractor_company?.toLowerCase() || "";
+          compareB = b.contractor_company?.toLowerCase() || "";
+          break;
+        default:
+          compareA = a.event_name?.toLowerCase() || "";
+          compareB = b.event_name?.toLowerCase() || "";
+      }
+
+      if (sortDirection === "asc") {
+        return compareA.localeCompare(compareB);
+      } else {
+        return compareB.localeCompare(compareA);
+      }
+    });
+
     res.status(200).json({
       success: true,
       message: "Event view data retrieved successfully",
       data: transformedData,
       total_items: transformedData.length,
       total_schedules: schedules.length,
+      sort_by: sortField,
+      sort_order: sortDirection,
     });
   } catch (error) {
     console.error("Error fetching event view data:", error);
