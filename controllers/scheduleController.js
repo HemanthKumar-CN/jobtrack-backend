@@ -3435,6 +3435,25 @@ const getEventView = async (req, res) => {
     Object.values(groupedData).forEach((event) => {
       Object.values(event.locations).forEach((location) => {
         Object.values(location.contractors).forEach((contractor) => {
+          // Sort scheduled_employees by last name for each classification
+          Object.values(contractor.class_types).forEach((classTypeGroup) => {
+            Object.values(classTypeGroup).forEach((classGroup) => {
+              if (classGroup.scheduled_employees) {
+                classGroup.scheduled_employees.sort((a, b) => {
+                  const lastNameA = a.employee_name
+                    .split(" ")
+                    .pop()
+                    .toLowerCase();
+                  const lastNameB = b.employee_name
+                    .split(" ")
+                    .pop()
+                    .toLowerCase();
+                  return lastNameA.localeCompare(lastNameB);
+                });
+              }
+            });
+          });
+
           // Convert class_types object to arrays
           const classTypes = {
             regular: Object.values(contractor.class_types.regular),
