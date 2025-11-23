@@ -8,6 +8,7 @@ const {
   TimeOffReason,
   RecurringBlockedTime,
   EmployeeRestriction,
+  AdminConfig,
 } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -638,11 +639,22 @@ exports.getEmployeeProfile = async (req, res) => {
       attributes: ["notification_preference"],
     });
 
+    // Fetch timesheet_amount from admin_configs
+    let timesheetAmount = 0.5; // Default value
+    const adminConfig = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+      attributes: ["timesheet_amount"],
+    });
+    if (adminConfig && adminConfig.timesheet_amount) {
+      timesheetAmount = adminConfig.timesheet_amount;
+    }
+
     return res.json({
       ...user.toJSON(),
       notification_preference: employee
         ? employee.getDataValue("notification_preference")
         : "email", // Default to "email"
+      timesheet_amount: timesheetAmount,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -1751,5 +1763,55 @@ exports.getEmployeesList = async (req, res) => {
     res.status(200).json(employees);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateTimesheetAmount = async (req, res) => {
+  try {
+    const { timesheet_amount } = req.body;
+
+    if (timesheet_amount === undefined || timesheet_amount === null) {
+      return res.status(400).json({
+        success: false,
+        message: "timesheet_amount is required",
+      });
+    }
+
+    if (timesheet_amount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "timesheet_amount cannot be negative",
+      });
+    }
+
+    const userId = req.user.userId;
+
+    // Check if admin config exists for this user
+    let adminConfig = await AdminConfig.findOne({
+      where: { user_id: userId },
+    });
+
+    if (adminConfig) {
+      // Update existing config
+      await adminConfig.update({ timesheet_amount });
+    } else {
+      // Create new config
+      adminConfig = await AdminConfig.create({
+        user_id: userId,
+        timesheet_amount,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Timesheet amount updated successfully",
+      timesheet_amount: parseFloat(adminConfig.timesheet_amount),
+    });
+  } catch (error) {
+    console.error("Error updating timesheet amount:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
   }
 };

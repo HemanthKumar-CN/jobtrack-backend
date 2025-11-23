@@ -3419,7 +3419,8 @@ const getEventView = async (req, res) => {
       classGroup.scheduled_employees.push({
         schedule_id: schedule.id,
         employee_id: employee.id,
-        employee_name: `${user.first_name} ${user.last_name}`,
+        first_name: user.first_name,
+        last_name: user.last_name,
         snf: employee.snf,
         type: employee.type,
         status: schedule.status,
@@ -3440,14 +3441,8 @@ const getEventView = async (req, res) => {
             Object.values(classTypeGroup).forEach((classGroup) => {
               if (classGroup.scheduled_employees) {
                 classGroup.scheduled_employees.sort((a, b) => {
-                  const lastNameA = a.employee_name
-                    .split(" ")
-                    .pop()
-                    .toLowerCase();
-                  const lastNameB = b.employee_name
-                    .split(" ")
-                    .pop()
-                    .toLowerCase();
+                  const lastNameA = (a.last_name || "").toLowerCase();
+                  const lastNameB = (b.last_name || "").toLowerCase();
                   return lastNameA.localeCompare(lastNameB);
                 });
               }
