@@ -42,22 +42,22 @@ exports.searchEmployees = async (req, res) => {
         [Op.or]: [
           {
             ges: {
-              [Op.like]: `%${search}%`,
+              [Op.iLike]: `%${search}%`,
             },
           },
           {
             four: {
-              [Op.like]: `%${search}%`,
+              [Op.iLike]: `%${search}%`,
             },
           },
           {
             "$User.first_name$": {
-              [Op.like]: `%${search}%`,
+              [Op.iLike]: `%${search}%`,
             },
           },
           {
             "$User.last_name$": {
-              [Op.like]: `%${search}%`,
+              [Op.iLike]: `%${search}%`,
             },
           },
         ],
