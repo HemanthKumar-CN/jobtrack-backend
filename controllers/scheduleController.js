@@ -770,7 +770,7 @@ const getLatestConfirmedAssignments = async (req, res) => {
     const startOfPreviousDay = moment(previousDay).startOf("day").toDate();
     const endOfPreviousDay = moment(previousDay).endOf("day").toDate();
 
-    console.log(`Looking for assignments on previous day: ${previousDay}`);
+    console.log(`Looking for assignments on previous day:${previousDay}`);
     console.log(`UTC range: ${startOfPreviousDay} to ${endOfPreviousDay}`);
 
     const assignments = await Schedule.findAll({
