@@ -460,7 +460,7 @@ const createBulkSchedule = async (req, res) => {
         task_event_id: eventId,
         event_location_contractor_id: locationContractorId || null,
         contractor_class_id: classificationId || null,
-        start_time: startTime, // UTC
+        start_time: sequelize.literal(`'${startTime}'`),
         comments: comments || null,
         status: "pending",
         response_token: responseToken,
@@ -485,14 +485,9 @@ const createBulkSchedule = async (req, res) => {
       );
 
       const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
-      const formattedTime = new Date(startTime).toLocaleString(undefined, {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      });
+      const formattedTime = moment(startTime, "YYYY-MM-DD HH:mm:ss").format(
+        "MMM DD, YYYY hh:mm A",
+      );
 
       const scheduleMessage = await AdminConfig.findOne({
         where: { user_id: req.user.userId },
@@ -1372,17 +1367,10 @@ const updateSchedule = async (req, res) => {
     );
 
     const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
-    const formattedTime = new Date(updateData.start_time).toLocaleString(
-      undefined,
-      {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: true,
-      },
-    );
+    const formattedTime = moment(
+      updateData.start_time,
+      "YYYY-MM-DD HH:mm:ss",
+    ).format("MMM DD, YYYY hh:mm A");
     const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
     // **Send SMS to Employee**
@@ -1398,7 +1386,14 @@ const updateSchedule = async (req, res) => {
     });
 
     // Update only fields provided in request body
-    await schedule.update({ ...updateData, status: "pending" });
+    // Handle start_time specially to avoid timezone conversion
+    const updatePayload = { ...updateData, status: "pending" };
+    if (updateData.start_time) {
+      updatePayload.start_time = sequelize.literal(
+        `'${updateData.start_time}'`,
+      );
+    }
+    await schedule.update(updatePayload);
 
     // When schedule is updated and status is set to "pending",
     // delete any existing timesheet record
