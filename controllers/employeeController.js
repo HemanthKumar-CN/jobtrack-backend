@@ -190,8 +190,12 @@ exports.createEmployee = async (req, res) => {
             day_of_week: day,
             start_date: startDate,
             end_date: endDate,
-            start_time: new Date(startTime).toTimeString().slice(0, 5),
-            end_time: new Date(endTime).toTimeString().slice(0, 5),
+            start_time: startTime.match(/^\d{2}:\d{2}$/)
+              ? `${startTime}:00`
+              : startTime,
+            end_time: endTime.match(/^\d{2}:\d{2}$/)
+              ? `${endTime}:00`
+              : endTime,
           },
           { transaction },
         );
@@ -220,10 +224,14 @@ exports.createEmployee = async (req, res) => {
           start_date: timeOff.startDate || null, // Allow null if optional
           end_date: timeOff.endDate || null, // Allow null if optional
           start_time: timeOff.startTime
-            ? new Date(timeOff.startTime).toTimeString().slice(0, 5)
+            ? timeOff.startTime.match(/^\d{2}:\d{2}$/)
+              ? `${timeOff.startTime}:00`
+              : timeOff.startTime
             : null,
           end_time: timeOff.endTime
-            ? new Date(timeOff.endTime).toTimeString().slice(0, 5)
+            ? timeOff.endTime.match(/^\d{2}:\d{2}$/)
+              ? `${timeOff.endTime}:00`
+              : timeOff.endTime
             : null,
         },
         { transaction },
@@ -1328,6 +1336,8 @@ exports.updateEmployee = async (req, res) => {
     let recurringTimes = [];
     let timeOffs = [];
 
+    console.log(">>>>>>>>>", req.body);
+
     try {
       if (req.body.selectedRestrictions) {
         selectedRestrictions = JSON.parse(req.body.selectedRestrictions);
@@ -1516,10 +1526,14 @@ exports.updateEmployee = async (req, res) => {
               ? new Date(block.endDate).toISOString().split("T")[0]
               : null,
             start_time: block.startTime
-              ? new Date(block.startTime).toTimeString().slice(0, 5)
+              ? block.startTime.match(/^\d{2}:\d{2}$/)
+                ? `${block.startTime}:00`
+                : block.startTime
               : null,
             end_time: block.endTime
-              ? new Date(block.endTime).toTimeString().slice(0, 5)
+              ? block.endTime.match(/^\d{2}:\d{2}$/)
+                ? `${block.endTime}:00`
+                : block.endTime
               : null,
             day_of_week: day,
           });
@@ -1591,10 +1605,14 @@ exports.updateEmployee = async (req, res) => {
             ? new Date(to.endDate).toISOString().split("T")[0]
             : null,
           start_time: to.startTime
-            ? new Date(to.startTime).toTimeString().slice(0, 5)
+            ? to.startTime.match(/^\d{2}:\d{2}$/)
+              ? `${to.startTime}:00`
+              : to.startTime
             : null,
           end_time: to.endTime
-            ? new Date(to.endTime).toTimeString().slice(0, 5)
+            ? to.endTime.match(/^\d{2}:\d{2}$/)
+              ? `${to.endTime}:00`
+              : to.endTime
             : null,
           // If frontend sends an `id` for existing time-offs, include it for matching
           id: to.id || null,

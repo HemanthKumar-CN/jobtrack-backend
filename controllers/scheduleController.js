@@ -1138,7 +1138,7 @@ const eventList = async (req, res) => {
           ],
         },
       ],
-      order: [["id", "ASC"]],
+      order: [["event_name", "ASC"]],
       // raw: true,
     });
 

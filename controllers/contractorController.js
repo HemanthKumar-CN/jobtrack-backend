@@ -72,6 +72,7 @@ const getAllContractors = async (req, res) => {
 const getContractsDropdown = async (req, res) => {
   try {
     const contractors = await Contractor.findAll({
+      where: { status: "active" },
       attributes: ["id", "company_name"], // Fetch only id & company_name
       order: [["id", "ASC"]],
     });

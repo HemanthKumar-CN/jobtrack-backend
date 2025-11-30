@@ -39,6 +39,7 @@ exports.searchEmployees = async (req, res) => {
         },
       ],
       where: {
+        status: "active",
         [Op.or]: [
           {
             ges: {
