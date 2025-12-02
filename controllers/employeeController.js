@@ -1336,7 +1336,7 @@ exports.updateEmployee = async (req, res) => {
     let recurringTimes = [];
     let timeOffs = [];
 
-    console.log(">>>>>>>>>", req.body);
+    console.log("Employee Update", req.body);
 
     try {
       if (req.body.selectedRestrictions) {
