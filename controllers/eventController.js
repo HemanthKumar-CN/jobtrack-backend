@@ -252,7 +252,7 @@ const getAllEvents = async (req, res) => {
     // Use date strings for DATEONLY comparison
     const todayDate = moment.utc().format("YYYY-MM-DD");
 
-    console.log("Today Date:", todayDate);
+    console.log("Today Date:---", todayDate);
 
     if (tab === "Current") {
       // Event is current if today falls between start_date and end_date (inclusive)
