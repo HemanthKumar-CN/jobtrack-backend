@@ -135,13 +135,9 @@ exports.createEmployee = async (req, res) => {
       // Map restrictions to include activeDate and inactiveDate for the junction table
       const restrictionAssociations = selectedRestrictions.map((r) => ({
         restriction_id: r.id,
-        // Convert Date objects to ISO string or null for DATEONLY type
-        active_date: r.active_date
-          ? new Date(r.active_date).toISOString().split("T")[0]
-          : null,
-        inactive_date: r.inactive_date
-          ? new Date(r.inactive_date).toISOString().split("T")[0]
-          : null,
+        // Frontend sends dates in YYYY-MM-DD format directly
+        active_date: r.active_date || null,
+        inactive_date: r.inactive_date || null,
       }));
 
       console.log(restrictionAssociations, "+++===+++ restrictionAssociations");
@@ -1518,13 +1514,9 @@ exports.updateEmployee = async (req, res) => {
         if (!Array.isArray(block.days) || block.days.length === 0) continue; // Skip invalid blocks
         for (const day of block.days) {
           normalizedIncomingRecurringTimes.push({
-            // Frontend sends Date objects, convert to consistent format for comparison/storage
-            start_date: block.startDate
-              ? new Date(block.startDate).toISOString().split("T")[0]
-              : null,
-            end_date: block.endDate
-              ? new Date(block.endDate).toISOString().split("T")[0]
-              : null,
+            // Frontend sends dates in YYYY-MM-DD format directly
+            start_date: block.startDate || null,
+            end_date: block.endDate || null,
             start_time: block.startTime
               ? block.startTime.match(/^\d{2}:\d{2}$/)
                 ? `${block.startTime}:00`
@@ -1598,12 +1590,9 @@ exports.updateEmployee = async (req, res) => {
         .map((to) => ({
           // Ensure reason_id is integer and other fields are formatted
           reason_id: parseInt(to.reason_id),
-          start_date: to.startDate
-            ? new Date(to.startDate).toISOString().split("T")[0]
-            : null,
-          end_date: to.endDate
-            ? new Date(to.endDate).toISOString().split("T")[0]
-            : null,
+          // Frontend sends dates in YYYY-MM-DD format directly
+          start_date: to.startDate || null,
+          end_date: to.endDate || null,
           start_time: to.startTime
             ? to.startTime.match(/^\d{2}:\d{2}$/)
               ? `${to.startTime}:00`
@@ -1638,14 +1627,10 @@ exports.updateEmployee = async (req, res) => {
             // Check if anything actually changed
             const hasChanged =
               existingTimeOff.reason_id !== incomingTimeOff.reason_id ||
-              (existingTimeOff.start_date?.toISOString().split("T")[0] ||
-                null) !== incomingTimeOff.start_date ||
-              (existingTimeOff.end_date?.toISOString().split("T")[0] ||
-                null) !== incomingTimeOff.end_date ||
-              (existingTimeOff.start_time?.slice(0, 5) || null) !==
-                incomingTimeOff.start_time || // Compare slices
-              (existingTimeOff.end_time?.slice(0, 5) || null) !==
-                incomingTimeOff.end_time;
+              (existingTimeOff.start_date || null) !== incomingTimeOff.start_date ||
+              (existingTimeOff.end_date || null) !== incomingTimeOff.end_date ||
+              (existingTimeOff.start_time || null) !== incomingTimeOff.start_time ||
+              (existingTimeOff.end_time || null) !== incomingTimeOff.end_time;
 
             if (hasChanged) {
               toUpdate.push(incomingTimeOff);
