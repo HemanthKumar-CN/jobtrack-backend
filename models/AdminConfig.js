@@ -34,6 +34,10 @@ module.exports = (sequelize, DataTypes) => {
           return value ? parseFloat(value) : 0.5;
         },
       },
+      phone_number: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "admin_configs",

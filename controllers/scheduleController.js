@@ -425,6 +425,17 @@ const createBulkSchedule = async (req, res) => {
       return res.status(400).json({ error: "Invalid payload structure" });
     }
 
+    // ========== TEMPORARY BLOCK START: Fetch Admin Phone Number ==========
+    // Fetch the phone number from admin_configs based on req.user.userId
+    const adminConfig = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+      attributes: ["phone_number"],
+    });
+
+    const employeePhone = adminConfig?.phone_number || null;
+    console.log("📞 Employee Phone from admin_configs:", employeePhone);
+    // ========== TEMPORARY BLOCK END ==========
+
     const scheduleEntries = [];
 
     console.log(scheduleData, "/..// Schedule data ***********");
@@ -510,7 +521,7 @@ const createBulkSchedule = async (req, res) => {
       // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
       // **Send SMS to Employee**
-      const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
+      // const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
       // const employeePhone = employee.phone; +17736107719   "+13123711639"
 
       console.log("/////===============", scheduleLink);
@@ -1374,17 +1385,30 @@ const updateSchedule = async (req, res) => {
     ).format("MMM DD, YYYY hh:mm A");
     const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
-    // **Send SMS to Employee**
-    const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
+    // ========== TEMPORARY BLOCK START: Fetch Admin Phone Number ==========
+    // Fetch the phone number from admin_configs based on req.user.userId
+    const adminConfig = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+      attributes: ["phone_number"],
+    });
+
+    const employeePhone = adminConfig?.phone_number || null;
+    console.log("📞 Employee Phone from admin_configs:", employeePhone);
+    // ========== TEMPORARY BLOCK END ==========
 
     console.log("/////===============", scheduleLink);
     console.log(messageBody, "sms message body--", "===");
 
-    await client.messages.create({
-      body: messageBody,
-      from: "+17087345990",
-      to: employeePhone,
-    });
+    if (employeePhone) {
+      await client.messages.create({
+        body: messageBody,
+        from: "+17087345990",
+        to: employeePhone,
+      });
+      console.log("✅ SMS sent successfully to:", employeePhone);
+    } else {
+      console.log("⚠️ No phone number found in admin_configs. SMS not sent.");
+    }
 
     // Update only fields provided in request body
     // Handle start_time specially to avoid timezone conversion
