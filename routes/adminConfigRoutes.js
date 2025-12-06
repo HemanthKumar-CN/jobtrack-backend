@@ -8,6 +8,6 @@ const router = express.Router();
 
 router.get("/", getAdminConfigs);
 router.post("/", createOrUpdateAdminConfig);
-router.put("/admin-phone/:param", updatePhoneNumber);
+router.put("/admin-phone", updatePhoneNumber);
 
 module.exports = router;

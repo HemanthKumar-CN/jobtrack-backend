@@ -65,43 +65,39 @@ const createOrUpdateAdminConfig = async (req, res) => {
 
 const updatePhoneNumber = async (req, res) => {
   try {
-    const { param } = req.params; // Extract the param (client or testing) from the URL
+    const { phone_number } = req.body;
 
-    // Define the phone numbers for client and testing
-    const phoneNumbers = {
-      client: "+17736107719",
-      testing: "+13123711639",
-    };
-
-    // Validate the param
-    if (!phoneNumbers[param]) {
+    // Validate phone number
+    if (!phone_number) {
       return res.status(400).json({
         success: false,
-        error: "Invalid param. Must be 'client' or 'testing'.",
+        error: "Phone number is required.",
       });
     }
 
-    // Find the admin config entry for the given user_id
-    const config = await AdminConfig.findOne({
+    // Find or create admin config entry for the given user_id
+    let config = await AdminConfig.findOne({
       where: { user_id: req.user.userId },
     });
 
     if (!config) {
-      return res
-        .status(404)
-        .json({ success: false, error: "No admin config found for the user." });
+      // Create new config if it doesn't exist
+      config = await AdminConfig.create({
+        user_id: req.user.userId,
+        phone_number: phone_number,
+      });
+    } else {
+      // Update the phone number
+      config.phone_number = phone_number;
+      await config.save();
     }
 
     console.log(
-      "Updating phone number for user:",
+      "Updated phone number for user:",
       req.user.userId,
       "to",
-      phoneNumbers[param],
+      phone_number,
     );
-
-    // Update the phone number based on the param
-    config.phone_number = phoneNumbers[param];
-    await config.save();
 
     res.json({ success: true, data: config });
   } catch (error) {

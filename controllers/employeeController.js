@@ -643,14 +643,20 @@ exports.getEmployeeProfile = async (req, res) => {
       attributes: ["notification_preference"],
     });
 
-    // Fetch timesheet_amount from admin_configs
+    // Fetch timesheet_amount and phone_number from admin_configs
     let timesheetAmount = 0.5; // Default value
+    let testPhoneNumber = null;
     const adminConfig = await AdminConfig.findOne({
       where: { user_id: req.user.userId },
-      attributes: ["timesheet_amount"],
+      attributes: ["timesheet_amount", "phone_number"],
     });
-    if (adminConfig && adminConfig.timesheet_amount) {
-      timesheetAmount = adminConfig.timesheet_amount;
+    if (adminConfig) {
+      if (adminConfig.timesheet_amount) {
+        timesheetAmount = adminConfig.timesheet_amount;
+      }
+      if (adminConfig.phone_number) {
+        testPhoneNumber = adminConfig.phone_number;
+      }
     }
 
     return res.json({
@@ -659,6 +665,7 @@ exports.getEmployeeProfile = async (req, res) => {
         ? employee.getDataValue("notification_preference")
         : "email", // Default to "email"
       timesheet_amount: timesheetAmount,
+      test_phone_number: testPhoneNumber,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -1627,9 +1634,11 @@ exports.updateEmployee = async (req, res) => {
             // Check if anything actually changed
             const hasChanged =
               existingTimeOff.reason_id !== incomingTimeOff.reason_id ||
-              (existingTimeOff.start_date || null) !== incomingTimeOff.start_date ||
+              (existingTimeOff.start_date || null) !==
+                incomingTimeOff.start_date ||
               (existingTimeOff.end_date || null) !== incomingTimeOff.end_date ||
-              (existingTimeOff.start_time || null) !== incomingTimeOff.start_time ||
+              (existingTimeOff.start_time || null) !==
+                incomingTimeOff.start_time ||
               (existingTimeOff.end_time || null) !== incomingTimeOff.end_time;
 
             if (hasChanged) {
