@@ -117,6 +117,7 @@ const createEvent = async (req, res) => {
       locations,
       event_type,
       status = "active", // Default to active if not provided
+      auto_confirm_schedule = false, // Default to false if not provided
     } = req.body;
 
     if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
@@ -133,6 +134,7 @@ const createEvent = async (req, res) => {
         end_date: end_date,
         event_type,
         status,
+        auto_confirm_schedule,
       },
       { transaction: t },
     );
@@ -379,6 +381,7 @@ const getEventById = async (req, res) => {
         "end_date",
         "event_type",
         "status",
+        "auto_confirm_schedule",
       ],
     });
 
@@ -649,6 +652,7 @@ const updateEvent = async (req, res) => {
       locations,
       event_type,
       status = "active", // Default to active if not provided
+      auto_confirm_schedule = false, // Default to false if not provided
     } = req.body;
 
     // 🔎 Validate required fields
@@ -667,6 +671,7 @@ const updateEvent = async (req, res) => {
         end_date: end_date,
         event_type,
         status,
+        auto_confirm_schedule,
       },
       { where: { id }, transaction: t },
     );

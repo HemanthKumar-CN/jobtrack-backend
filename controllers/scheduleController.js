@@ -466,6 +466,16 @@ const createBulkSchedule = async (req, res) => {
         process.env.TWILIO_ACCOUNT_SID,
       );
 
+      // Fetch event to check auto_confirm_schedule
+      const event = await Event.findByPk(eventId, {
+        attributes: ["event_name", "auto_confirm_schedule"],
+      });
+
+      // Determine schedule status based on auto_confirm_schedule
+      const scheduleStatus = event?.auto_confirm_schedule
+        ? "confirmed"
+        : "pending";
+
       scheduleEntries.push({
         employee_id: parseInt(employeeId),
         task_event_id: eventId,
@@ -473,65 +483,66 @@ const createBulkSchedule = async (req, res) => {
         contractor_class_id: classificationId || null,
         start_time: sequelize.literal(`'${startTime}'`),
         comments: comments || null,
-        status: "pending",
+        status: scheduleStatus,
         response_token: responseToken,
-        responded_at: null,
+        responded_at: event?.auto_confirm_schedule ? new Date() : null,
       });
 
-      const event = await Event.findByPk(eventId, {
-        attributes: ["event_name"],
-      });
-
-      const locationData = await EventLocationContractor.findByPk(
-        locationContractorId,
-        {
-          include: {
-            model: EventLocation,
+      // Only send SMS if auto_confirm_schedule is false
+      if (!event?.auto_confirm_schedule) {
+        const locationData = await EventLocationContractor.findByPk(
+          locationContractorId,
+          {
             include: {
-              model: Location,
-              attributes: ["name"],
+              model: EventLocation,
+              include: {
+                model: Location,
+                attributes: ["name"],
+              },
             },
           },
-        },
-      );
+        );
 
-      const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
-      const formattedTime = moment(startTime, "YYYY-MM-DD HH:mm:ss").format(
-        "MMM DD, YYYY hh:mm A",
-      );
+        const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${responseToken}`;
+        const formattedTime = moment(startTime, "YYYY-MM-DD HH:mm:ss").format(
+          "MMM DD, YYYY hh:mm A",
+        );
 
-      const scheduleMessage = await AdminConfig.findOne({
-        where: { user_id: req.user.userId },
-      });
+        const scheduleMessage = await AdminConfig.findOne({
+          where: { user_id: req.user.userId },
+        });
 
-      const employee = await Employee.findByPk(employeeId, {
-        attributes: ["phone"],
-      });
+        const employee = await Employee.findByPk(employeeId, {
+          attributes: ["phone"],
+        });
 
-      const baseMessage = scheduleMessage?.new_schedule_message;
+        const baseMessage = scheduleMessage?.new_schedule_message;
 
-      const messageBody =
-        baseMessage
-          .replace("[Event]", event.event_name)
-          .replace("[Location]", locationData.EventLocation.Location.name)
-          .replace("[Start Date]", formattedTime)
-          .replace("[Start Time]", formattedTime) +
-        `. Confirm 👉 ${scheduleLink}`;
+        const messageBody =
+          baseMessage
+            .replace("[Event]", event.event_name)
+            .replace("[Location]", locationData.EventLocation.Location.name)
+            .replace("[Start Date]", formattedTime)
+            .replace("[Start Time]", formattedTime) +
+          `. Confirm 👉 ${scheduleLink}`;
 
-      // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
+        // const messageBody = `You are scheduled for ${event.event_name} at ${locationData.EventLocation.Location.name} from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
-      // **Send SMS to Employee**
-      // const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
-      // const employeePhone = employee.phone; +17736107719   "+13123711639"
+        // **Send SMS to Employee**
+        // const employeePhone = "+17736107719"; // Hardcoded for now, later replace with actual employee's number
+        // const employeePhone = employee.phone; +17736107719   "+13123711639"
 
-      console.log("/////===============", scheduleLink);
-      console.log(messageBody, "sms message body--", "===", employeePhone);
+        console.log("/////===============", scheduleLink);
+        console.log(messageBody, "sms message body--", "===", employeePhone);
 
-      await client.messages.create({
-        body: messageBody,
-        from: "+17087345990",
-        to: employeePhone,
-      });
+        await client.messages.create({
+          body: messageBody,
+          from: "+17087345990",
+          to: employeePhone,
+        });
+      } else {
+        console.log("📌 Auto-confirm enabled for event. Skipping SMS.");
+      }
     }
 
     await Schedule.bulkCreate(scheduleEntries, { returning: true });
@@ -1361,58 +1372,72 @@ const updateSchedule = async (req, res) => {
 
     console.log(schedule, "????? Schedule to update");
 
+    // Fetch event to check auto_confirm_schedule
     const event = await Event.findByPk(updateData.event_id, {
-      attributes: ["event_name"],
+      attributes: ["event_name", "auto_confirm_schedule"],
     });
 
-    const locationData = await EventLocationContractor.findByPk(
-      updateData.event_location_contractor_id,
-      {
-        include: {
-          model: EventLocation,
+    // Determine schedule status based on auto_confirm_schedule
+    const scheduleStatus = event?.auto_confirm_schedule
+      ? "confirmed"
+      : "pending";
+
+    // Only send SMS if auto_confirm_schedule is false
+    if (!event?.auto_confirm_schedule) {
+      const locationData = await EventLocationContractor.findByPk(
+        updateData.event_location_contractor_id,
+        {
           include: {
-            model: Location,
-            attributes: ["name"],
+            model: EventLocation,
+            include: {
+              model: Location,
+              attributes: ["name"],
+            },
           },
         },
-      },
-    );
+      );
 
-    const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
-    const formattedTime = moment(
-      updateData.start_time,
-      "YYYY-MM-DD HH:mm:ss",
-    ).format("MMM DD, YYYY hh:mm A");
-    const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
+      const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
+      const formattedTime = moment(
+        updateData.start_time,
+        "YYYY-MM-DD HH:mm:ss",
+      ).format("MMM DD, YYYY hh:mm A");
+      const messageBody = `Your schedule for ${event.event_name} at ${locationData.EventLocation.Location.name} is updated from ${formattedTime}. Confirm 👉 ${scheduleLink}`;
 
-    // ========== TEMPORARY BLOCK START: Fetch Admin Phone Number ==========
-    // Fetch the phone number from admin_configs based on req.user.userId
-    const adminConfig = await AdminConfig.findOne({
-      where: { user_id: req.user.userId },
-      attributes: ["phone_number"],
-    });
-
-    const employeePhone = adminConfig?.phone_number || null;
-    console.log("📞 Employee Phone from admin_configs:", employeePhone);
-    // ========== TEMPORARY BLOCK END ==========
-
-    console.log("/////===============", scheduleLink);
-    console.log(messageBody, "sms message body--", "===");
-
-    if (employeePhone) {
-      await client.messages.create({
-        body: messageBody,
-        from: "+17087345990",
-        to: employeePhone,
+      // ========== TEMPORARY BLOCK START: Fetch Admin Phone Number ==========
+      // Fetch the phone number from admin_configs based on req.user.userId
+      const adminConfig = await AdminConfig.findOne({
+        where: { user_id: req.user.userId },
+        attributes: ["phone_number"],
       });
-      console.log("✅ SMS sent successfully to:", employeePhone);
+
+      const employeePhone = adminConfig?.phone_number || null;
+      console.log("📞 Employee Phone from admin_configs:", employeePhone);
+      // ========== TEMPORARY BLOCK END ==========
+
+      console.log("/////===============", scheduleLink);
+      console.log(messageBody, "sms message body--", "===");
+
+      if (employeePhone) {
+        await client.messages.create({
+          body: messageBody,
+          from: "+17087345990",
+          to: employeePhone,
+        });
+        console.log("✅ SMS sent successfully to:", employeePhone);
+      } else {
+        console.log("⚠️ No phone number found in admin_configs. SMS not sent.");
+      }
     } else {
-      console.log("⚠️ No phone number found in admin_configs. SMS not sent.");
+      console.log("📌 Auto-confirm enabled for event. Skipping SMS on update.");
     }
 
     // Update only fields provided in request body
     // Handle start_time specially to avoid timezone conversion
-    const updatePayload = { ...updateData, status: "pending" };
+    const updatePayload = { ...updateData, status: scheduleStatus };
+    if (event?.auto_confirm_schedule) {
+      updatePayload.responded_at = new Date();
+    }
     if (updateData.start_time) {
       updatePayload.start_time = sequelize.literal(
         `'${updateData.start_time}'`,

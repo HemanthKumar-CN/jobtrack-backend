@@ -39,6 +39,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "active",
       },
+      auto_confirm_schedule: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
+      },
     },
     {
       tableName: "Events",
