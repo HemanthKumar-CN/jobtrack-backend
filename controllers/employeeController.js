@@ -414,6 +414,33 @@ exports.getNotScheduledEmployees = async (req, res) => {
       }
     }
 
+    let capacityFilter = [];
+    if (capacity) {
+      try {
+        if (Array.isArray(capacity)) {
+          // Already an array from query parser
+          capacityFilter = capacity;
+        } else if (typeof capacity === "string") {
+          // Check if it looks like an array string: [...]
+          if (capacity.startsWith("[") && capacity.endsWith("]")) {
+            // Remove brackets and split by comma
+            const innerContent = capacity.slice(1, -1).trim();
+            if (innerContent) {
+              capacityFilter = innerContent
+                .split(",")
+                .map((item) => item.trim());
+            }
+          } else {
+            // Single value
+            capacityFilter = [capacity];
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing capacity filter:", err);
+        capacityFilter = [capacity]; // fallback to single value
+      }
+    }
+
     const result = employees
       .map((emp) => {
         let capacity = "Available";
@@ -467,8 +494,13 @@ exports.getNotScheduledEmployees = async (req, res) => {
         };
       })
       .filter((emp) => {
-        // ✅ Filter by capacity (if passed)
-        if (capacity && emp.capacity !== capacity) return false;
+        // ✅ Filter by capacity (if passed) - now supports array
+        if (
+          capacityFilter.length > 0 &&
+          !capacityFilter.includes(emp.capacity)
+        ) {
+          return false;
+        }
 
         // if (restriction) {
         //   const hasRestriction = emp.restrictions.some(
