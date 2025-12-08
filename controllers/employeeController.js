@@ -630,7 +630,13 @@ exports.getEmployeeAbout = async (req, res) => {
 exports.getEmployeeProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.userId, {
-      attributes: ["id", "first_name", "last_name", "image_url"],
+      attributes: ["id", "first_name", "last_name", "image_url", "role_id"],
+      include: [
+        {
+          model: require("../models").Role,
+          attributes: ["id", "name"],
+        },
+      ],
     });
 
     if (!user) {
