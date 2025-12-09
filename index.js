@@ -83,6 +83,11 @@ app.use("/api/restrictions", authenticateUser, restrictionRoutes);
 app.use("/api/classifications", authenticateUser, classificationRoutes);
 app.use("/api/admin-configs", authenticateUser, adminConfigRoutes);
 
+// ✅ Catch-all: Return 404 for non-API routes (let Apache handle them)
+app.use((req, res) => {
+  res.status(404).send("Not Found");
+});
+
 // Dummy function to update employee status in DB
 async function updateEmployeeAvailability(phoneNumber, isAvailable) {
   // Replace this with actual DB update logic
