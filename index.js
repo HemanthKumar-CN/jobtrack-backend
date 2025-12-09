@@ -72,16 +72,17 @@ app.post("/api/twilio/sms-reply", async (req, res) => {
   }
 });
 
-app.use("/api/users", userRoutes);
+// ✅ Remove /api prefix - Passenger adds it via PassengerBaseURI
+app.use("/users", userRoutes);
 app.use(authenticateUser, require("./routes/locationRoutes"));
-app.use("/api/employees", authenticateUser, employeeRoutes);
-app.use("/api/schedules", authenticateUser, scheduleRoutes);
-app.use("/api/contractors", authenticateUser, contractorRoutes);
-app.use("/api/events", authenticateUser, eventRoutes);
-app.use("/api/reports", authenticateUser, reportRoutes);
-app.use("/api/restrictions", authenticateUser, restrictionRoutes);
-app.use("/api/classifications", authenticateUser, classificationRoutes);
-app.use("/api/admin-configs", authenticateUser, adminConfigRoutes);
+app.use("/employees", authenticateUser, employeeRoutes);
+app.use("/schedules", authenticateUser, scheduleRoutes);
+app.use("/contractors", authenticateUser, contractorRoutes);
+app.use("/events", authenticateUser, eventRoutes);
+app.use("/reports", authenticateUser, reportRoutes);
+app.use("/restrictions", authenticateUser, restrictionRoutes);
+app.use("/classifications", authenticateUser, classificationRoutes);
+app.use("/admin-configs", authenticateUser, adminConfigRoutes);
 
 // Dummy function to update employee status in DB
 async function updateEmployeeAvailability(phoneNumber, isAvailable) {
