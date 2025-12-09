@@ -37,8 +37,18 @@ const restrictionRoutes = require("./routes/restrictionRoutes");
 const classificationRoutes = require("./routes/classificationRoutes");
 const adminConfigRoutes = require("./routes/adminConfigRoutes");
 
-const sequelize = require("./config/database");
+const sequelize = require("../config/database");
 const { authenticateUser } = require("./utils/authenticateUser");
+
+// ✅ Middleware: Only handle /api and /uploads routes - ignore everything else
+app.use((req, res, next) => {
+  // If it's an API route or uploads, continue to Express
+  if (req.path.startsWith("/api") || req.path.startsWith("/uploads")) {
+    return next();
+  }
+  // Otherwise, let Apache handle it (WordPress, React, etc.)
+  res.status(404).send("Not Found - This route is not handled by the backend");
+});
 
 app.get("/", (req, res) => {
   res.send("✅ Backend API Running!");
@@ -73,7 +83,7 @@ app.post("/api/twilio/sms-reply", async (req, res) => {
 });
 
 app.use("/api/users", userRoutes);
-app.use(authenticateUser, require("./routes/locationRoutes"));
+app.use("/api/locations", authenticateUser, require("./routes/locationRoutes"));
 app.use("/api/employees", authenticateUser, employeeRoutes);
 app.use("/api/schedules", authenticateUser, scheduleRoutes);
 app.use("/api/contractors", authenticateUser, contractorRoutes);
