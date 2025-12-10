@@ -12,13 +12,13 @@ const {
   dashboardItems,
 } = require("../controllers/locationController");
 
-router.post("/api/locations", upload.single("image"), createLocation); // Upload single image
-router.get("/api/locations", getLocations);
-router.get("/api/locations/employeeCount", dashboardLocation);
-router.get("/api/locations/dashboard", dashboardItems);
-router.get("/api/locations/all", getAllLocations);
-router.get("/api/locations/:id", getLocationById);
-router.put("/api/locations/:id", upload.single("image"), updateLocation);
-router.delete("/api/locations/:id", deleteLocation);
+router.post("/", upload.single("image"), createLocation); // Upload single image
+router.get("/", getLocations);
+router.get("/employeeCount", dashboardLocation);
+router.get("/dashboard", dashboardItems);
+router.get("/all", getAllLocations);
+router.get("/:id", getLocationById);
+router.put("/:id", upload.single("image"), updateLocation);
+router.delete("/:id", deleteLocation);
 
 module.exports = router;
