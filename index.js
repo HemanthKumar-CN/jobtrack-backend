@@ -45,7 +45,7 @@ app.get("/", (req, res) => {
 });
 
 // ✅ Webhook for handling Twilio SMS replies
-app.post("/twilio/sms-reply", async (req, res) => {
+app.post("/api/twilio/sms-reply", async (req, res) => {
   console.log("Received Twilio webhook:", req.body);
   try {
     const fromNumber = req.body.From; // Employee's phone number
@@ -72,21 +72,16 @@ app.post("/twilio/sms-reply", async (req, res) => {
   }
 });
 
-app.use("/users", userRoutes);
-app.use("/locations", authenticateUser, require("./routes/locationRoutes"));
-app.use("/employees", authenticateUser, employeeRoutes);
-app.use("/schedules", authenticateUser, scheduleRoutes);
-app.use("/contractors", authenticateUser, contractorRoutes);
-app.use("/events", authenticateUser, eventRoutes);
-app.use("/reports", authenticateUser, reportRoutes);
-app.use("/restrictions", authenticateUser, restrictionRoutes);
-app.use("/classifications", authenticateUser, classificationRoutes);
-app.use("/admin-configs", authenticateUser, adminConfigRoutes);
-
-// ✅ Catch-all: Return 404 for non-API routes (let Apache handle them)
-app.use((req, res) => {
-  res.status(404).send("Not Found");
-});
+app.use("/api/users", userRoutes);
+app.use(authenticateUser, require("./routes/locationRoutes"));
+app.use("/api/employees", authenticateUser, employeeRoutes);
+app.use("/api/schedules", authenticateUser, scheduleRoutes);
+app.use("/api/contractors", authenticateUser, contractorRoutes);
+app.use("/api/events", authenticateUser, eventRoutes);
+app.use("/api/reports", authenticateUser, reportRoutes);
+app.use("/api/restrictions", authenticateUser, restrictionRoutes);
+app.use("/api/classifications", authenticateUser, classificationRoutes);
+app.use("/api/admin-configs", authenticateUser, adminConfigRoutes);
 
 // Dummy function to update employee status in DB
 async function updateEmployeeAvailability(phoneNumber, isAvailable) {
