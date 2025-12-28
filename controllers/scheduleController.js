@@ -29,6 +29,7 @@ const client = new twilio(
   process.env.TWILIO_ACCOUNT_SID,
   process.env.TWILIO_AUTH_TOKEN,
 );
+const { sendEmail } = require("../utils/mailer");
 
 // Create Schedule
 const createSchedule = async (req, res) => {
@@ -540,6 +541,39 @@ const createBulkSchedule = async (req, res) => {
           from: "+17087345990",
           to: employeePhone,
         });
+
+        // **Send Email to Employee**
+        const employeeWithUser = await Employee.findByPk(employeeId, {
+          include: [
+            {
+              model: User,
+              attributes: ["email", "first_name", "last_name"],
+            },
+          ],
+        });
+
+        if (employeeWithUser?.User?.email) {
+          const emailSubject = "New Schedule Assignment";
+          const emailBody = `
+            <p>Hi ${employeeWithUser.User.first_name},</p>
+            <p>You have been scheduled for <strong>${event.event_name}</strong> at <strong>${locationData.EventLocation.Location.name}</strong>.</p>
+            <p><strong>Date & Time:</strong> ${formattedTime}</p>
+            <p>Please confirm your availability by clicking the link below:</p>
+            <p><a href="${scheduleLink}" target="_blank">Confirm Schedule</a></p>
+            <p>Thanks,<br>Schedyl Team</p>
+          `;
+
+          try {
+            await sendEmail(
+              employeeWithUser.User.email,
+              emailSubject,
+              emailBody,
+            );
+            console.log("📧 Email sent to:", employeeWithUser.User.email);
+          } catch (emailError) {
+            console.error("❌ Failed to send email:", emailError);
+          }
+        }
       } else {
         console.log("📌 Auto-confirm enabled for event. Skipping SMS.");
       }
@@ -1427,6 +1461,35 @@ const updateSchedule = async (req, res) => {
         console.log("✅ SMS sent successfully to:", employeePhone);
       } else {
         console.log("⚠️ No phone number found in admin_configs. SMS not sent.");
+      }
+
+      // **Send Email to Employee**
+      const employeeWithUser = await Employee.findByPk(schedule.employee_id, {
+        include: [
+          {
+            model: User,
+            attributes: ["email", "first_name", "last_name"],
+          },
+        ],
+      });
+
+      if (employeeWithUser?.User?.email) {
+        const emailSubject = "Schedule Update Notification";
+        const emailBody = `
+          <p>Hi ${employeeWithUser.User.first_name},</p>
+          <p>Your schedule for <strong>${event.event_name}</strong> at <strong>${locationData.EventLocation.Location.name}</strong> has been updated.</p>
+          <p><strong>New Date & Time:</strong> ${formattedTime}</p>
+          <p>Please confirm your availability by clicking the link below:</p>
+          <p><a href="${scheduleLink}" target="_blank">Confirm Schedule</a></p>
+          <p>Thanks,<br>Schedyl Team</p>
+        `;
+
+        try {
+          await sendEmail(employeeWithUser.User.email, emailSubject, emailBody);
+          console.log("📧 Email sent to:", employeeWithUser.User.email);
+        } catch (emailError) {
+          console.error("❌ Failed to send email:", emailError);
+        }
       }
     } else {
       console.log("📌 Auto-confirm enabled for event. Skipping SMS on update.");

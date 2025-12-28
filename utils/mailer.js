@@ -26,7 +26,7 @@ const sendWelcomeEmail = async (to, firstName, tempPassword) => {
           Password: <strong>${tempPassword}</strong>
         </p>
   
-        <p>You can log in here: <a href="https://schedyl.com" target="_blank">schedyl.com</a></p>
+        <p>You can log in here: <a href="https://app.schedyl.com" target="_blank">app.schedyl.com</a></p>
   
         <p>We recommend logging in soon and updating your password for security.</p>
   
@@ -35,9 +35,24 @@ const sendWelcomeEmail = async (to, firstName, tempPassword) => {
   };
 
   console.log("Sending email to:", to); // Log the recipient's email address
-  console.log("Email subject:", transporter); // Log the email subject
+  console.log("Email subject:", mailOptions.subject); // Log the email subject
 
   return transporter.sendMail(mailOptions);
 };
 
-module.exports = sendWelcomeEmail;
+// Generic email sending function
+const sendEmail = async (to, subject, htmlBody) => {
+  const mailOptions = {
+    from: '"Schedyl" <admin@schedyl.com>',
+    to,
+    subject,
+    html: htmlBody,
+  };
+
+  console.log("Sending email to:", to);
+  console.log("Email subject:", subject);
+
+  return transporter.sendMail(mailOptions);
+};
+
+module.exports = { sendWelcomeEmail, sendEmail };
