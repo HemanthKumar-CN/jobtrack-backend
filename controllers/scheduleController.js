@@ -818,20 +818,14 @@ const getLatestConfirmedAssignments = async (req, res) => {
     const previousDay = moment(todayDate)
       .subtract(1, "day")
       .format("YYYY-MM-DD");
-    const startOfPreviousDay = moment(previousDay).startOf("day").toDate();
-    const endOfPreviousDay = moment(previousDay).endOf("day").toDate();
 
-    console.log(`Looking for assignments on previous day:${previousDay}`);
-    console.log(`UTC range: ${startOfPreviousDay} to ${endOfPreviousDay}`);
+    console.log(`Looking for assignments on previous day: ${previousDay}`);
 
     const assignments = await Schedule.findAll({
       where: {
         employee_id: { [Op.in]: employeeIds },
         status: "confirmed",
-        start_time: {
-          [Op.gte]: startOfPreviousDay,
-          [Op.lte]: endOfPreviousDay,
-        },
+        [Op.and]: [where(fn("DATE", col("Schedule.start_time")), previousDay)],
       },
       include: [
         { model: Event, attributes: ["event_name", "id"] },
