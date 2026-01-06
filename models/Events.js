@@ -16,19 +16,33 @@ module.exports = (sequelize, DataTypes) => {
       },
       project_code: {
         type: DataTypes.STRING,
-        allowNull: true, // set false if mandatory
+        allowNull: true,
+      },
+      event_type: {
+        type: DataTypes.STRING,
+        allowNull: true,
       },
       project_comments: {
         type: DataTypes.TEXT,
-        allowNull: true, // set false if mandatory
+        allowNull: true,
       },
       start_date: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false,
       },
       end_date: {
-        type: DataTypes.DATE,
+        type: DataTypes.DATEONLY,
         allowNull: false,
+      },
+      status: {
+        type: DataTypes.ENUM("active", "inactive"),
+        allowNull: false,
+        defaultValue: "active",
+      },
+      auto_confirm_schedule: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: false,
       },
     },
     {

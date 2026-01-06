@@ -8,6 +8,7 @@ const {
   TimeOffReason,
   RecurringBlockedTime,
   EmployeeRestriction,
+  AdminConfig,
 } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -134,13 +135,9 @@ exports.createEmployee = async (req, res) => {
       // Map restrictions to include activeDate and inactiveDate for the junction table
       const restrictionAssociations = selectedRestrictions.map((r) => ({
         restriction_id: r.id,
-        // Convert Date objects to ISO string or null for DATEONLY type
-        active_date: r.active_date
-          ? new Date(r.active_date).toISOString().split("T")[0]
-          : null,
-        inactive_date: r.inactive_date
-          ? new Date(r.inactive_date).toISOString().split("T")[0]
-          : null,
+        // Frontend sends dates in YYYY-MM-DD format directly
+        active_date: r.active_date || null,
+        inactive_date: r.inactive_date || null,
       }));
 
       console.log(restrictionAssociations, "+++===+++ restrictionAssociations");
@@ -189,8 +186,12 @@ exports.createEmployee = async (req, res) => {
             day_of_week: day,
             start_date: startDate,
             end_date: endDate,
-            start_time: new Date(startTime).toTimeString().slice(0, 5),
-            end_time: new Date(endTime).toTimeString().slice(0, 5),
+            start_time: startTime.match(/^\d{2}:\d{2}$/)
+              ? `${startTime}:00`
+              : startTime,
+            end_time: endTime.match(/^\d{2}:\d{2}$/)
+              ? `${endTime}:00`
+              : endTime,
           },
           { transaction },
         );
@@ -219,10 +220,14 @@ exports.createEmployee = async (req, res) => {
           start_date: timeOff.startDate || null, // Allow null if optional
           end_date: timeOff.endDate || null, // Allow null if optional
           start_time: timeOff.startTime
-            ? new Date(timeOff.startTime).toTimeString().slice(0, 5)
+            ? timeOff.startTime.match(/^\d{2}:\d{2}$/)
+              ? `${timeOff.startTime}:00`
+              : timeOff.startTime
             : null,
           end_time: timeOff.endTime
-            ? new Date(timeOff.endTime).toTimeString().slice(0, 5)
+            ? timeOff.endTime.match(/^\d{2}:\d{2}$/)
+              ? `${timeOff.endTime}:00`
+              : timeOff.endTime
             : null,
         },
         { transaction },
@@ -299,8 +304,8 @@ exports.getNotScheduledEmployees = async (req, res) => {
 
   try {
     // 🔸 Step 1: Get employee IDs already scheduled on this date
-    const startOfDay = moment(date).startOf("day").toDate();
-    const endOfDay = moment(date).endOf("day").toDate();
+    const startOfDay = moment.utc(date).startOf("day").toDate();
+    const endOfDay = moment.utc(date).endOf("day").toDate();
 
     const scheduled = await Schedule.findAll({
       where: {
@@ -314,6 +319,12 @@ exports.getNotScheduledEmployees = async (req, res) => {
     });
 
     const scheduledEmployeeIds = scheduled.map((s) => s.employee_id);
+
+    console.log(
+      "Scheduled raw: @not-scheduled",
+      scheduled.map((s) => s.toJSON()),
+    );
+    console.log("Scheduled IDs: @not-scheduled", scheduledEmployeeIds);
 
     // 🔸 Step 2: Fetch all employees
     const employees = await Employee.findAll({
@@ -403,6 +414,33 @@ exports.getNotScheduledEmployees = async (req, res) => {
       }
     }
 
+    let capacityFilter = [];
+    if (capacity) {
+      try {
+        if (Array.isArray(capacity)) {
+          // Already an array from query parser
+          capacityFilter = capacity;
+        } else if (typeof capacity === "string") {
+          // Check if it looks like an array string: [...]
+          if (capacity.startsWith("[") && capacity.endsWith("]")) {
+            // Remove brackets and split by comma
+            const innerContent = capacity.slice(1, -1).trim();
+            if (innerContent) {
+              capacityFilter = innerContent
+                .split(",")
+                .map((item) => item.trim());
+            }
+          } else {
+            // Single value
+            capacityFilter = [capacity];
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing capacity filter:", err);
+        capacityFilter = [capacity]; // fallback to single value
+      }
+    }
+
     const result = employees
       .map((emp) => {
         let capacity = "Available";
@@ -456,8 +494,13 @@ exports.getNotScheduledEmployees = async (req, res) => {
         };
       })
       .filter((emp) => {
-        // ✅ Filter by capacity (if passed)
-        if (capacity && emp.capacity !== capacity) return false;
+        // ✅ Filter by capacity (if passed) - now supports array
+        if (
+          capacityFilter.length > 0 &&
+          !capacityFilter.includes(emp.capacity)
+        ) {
+          return false;
+        }
 
         // if (restriction) {
         //   const hasRestriction = emp.restrictions.some(
@@ -573,8 +616,8 @@ exports.getAllEmployees = async (req, res) => {
         },
       ],
       where: whereClause,
-      limit: parseInt(limit),
-      offset,
+      // limit: parseInt(limit),
+      // offset,
       order,
     });
 
@@ -619,7 +662,13 @@ exports.getEmployeeAbout = async (req, res) => {
 exports.getEmployeeProfile = async (req, res) => {
   try {
     const user = await User.findByPk(req.user.userId, {
-      attributes: ["id", "first_name", "last_name", "image_url"],
+      attributes: ["id", "first_name", "last_name", "image_url", "role_id"],
+      include: [
+        {
+          model: require("../models").Role,
+          attributes: ["id", "name"],
+        },
+      ],
     });
 
     if (!user) {
@@ -632,11 +681,29 @@ exports.getEmployeeProfile = async (req, res) => {
       attributes: ["notification_preference"],
     });
 
+    // Fetch timesheet_amount and phone_number from admin_configs
+    let timesheetAmount = 0.5; // Default value
+    let testPhoneNumber = null;
+    const adminConfig = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+      attributes: ["timesheet_amount", "phone_number"],
+    });
+    if (adminConfig) {
+      if (adminConfig.timesheet_amount) {
+        timesheetAmount = adminConfig.timesheet_amount;
+      }
+      if (adminConfig.phone_number) {
+        testPhoneNumber = adminConfig.phone_number;
+      }
+    }
+
     return res.json({
       ...user.toJSON(),
       notification_preference: employee
         ? employee.getDataValue("notification_preference")
         : "email", // Default to "email"
+      timesheet_amount: timesheetAmount,
+      test_phone_number: testPhoneNumber,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);
@@ -1310,6 +1377,8 @@ exports.updateEmployee = async (req, res) => {
     let recurringTimes = [];
     let timeOffs = [];
 
+    console.log("Employee Update", req.body);
+
     try {
       if (req.body.selectedRestrictions) {
         selectedRestrictions = JSON.parse(req.body.selectedRestrictions);
@@ -1400,12 +1469,8 @@ exports.updateEmployee = async (req, res) => {
     if (Array.isArray(selectedRestrictions)) {
       const restrictionAssociations = selectedRestrictions.map((r) => ({
         restriction_id: r.id,
-        active_date: r.active_date
-          ? new Date(r.active_date).toISOString().split("T")[0]
-          : null,
-        inactive_date: r.inactive_date
-          ? new Date(r.inactive_date).toISOString().split("T")[0]
-          : null,
+        active_date: r.active_date ? r.active_date : null,
+        inactive_date: r.inactive_date ? r.inactive_date : null,
       }));
 
       const currentEmployeeRestrictions = await employee.getRestrictions({
@@ -1433,14 +1498,10 @@ exports.updateEmployee = async (req, res) => {
 
         if (existingJunctionData) {
           const currentActiveDate = existingJunctionData.active_date
-            ? new Date(existingJunctionData.active_date)
-                .toISOString()
-                .split("T")[0]
+            ? existingJunctionData.active_date
             : null;
           const currentInactiveDate = existingJunctionData.inactive_date
-            ? new Date(existingJunctionData.inactive_date)
-                .toISOString()
-                .split("T")[0]
+            ? existingJunctionData.inactive_date
             : null;
 
           if (
@@ -1498,18 +1559,18 @@ exports.updateEmployee = async (req, res) => {
         if (!Array.isArray(block.days) || block.days.length === 0) continue; // Skip invalid blocks
         for (const day of block.days) {
           normalizedIncomingRecurringTimes.push({
-            // Frontend sends Date objects, convert to consistent format for comparison/storage
-            start_date: block.startDate
-              ? new Date(block.startDate).toISOString().split("T")[0]
-              : null,
-            end_date: block.endDate
-              ? new Date(block.endDate).toISOString().split("T")[0]
-              : null,
+            // Frontend sends dates in YYYY-MM-DD format directly
+            start_date: block.startDate || null,
+            end_date: block.endDate || null,
             start_time: block.startTime
-              ? new Date(block.startTime).toTimeString().slice(0, 5)
+              ? block.startTime.match(/^\d{2}:\d{2}$/)
+                ? `${block.startTime}:00`
+                : block.startTime
               : null,
             end_time: block.endTime
-              ? new Date(block.endTime).toTimeString().slice(0, 5)
+              ? block.endTime.match(/^\d{2}:\d{2}$/)
+                ? `${block.endTime}:00`
+                : block.endTime
               : null,
             day_of_week: day,
           });
@@ -1574,17 +1635,18 @@ exports.updateEmployee = async (req, res) => {
         .map((to) => ({
           // Ensure reason_id is integer and other fields are formatted
           reason_id: parseInt(to.reason_id),
-          start_date: to.startDate
-            ? new Date(to.startDate).toISOString().split("T")[0]
-            : null,
-          end_date: to.endDate
-            ? new Date(to.endDate).toISOString().split("T")[0]
-            : null,
+          // Frontend sends dates in YYYY-MM-DD format directly
+          start_date: to.startDate || null,
+          end_date: to.endDate || null,
           start_time: to.startTime
-            ? new Date(to.startTime).toTimeString().slice(0, 5)
+            ? to.startTime.match(/^\d{2}:\d{2}$/)
+              ? `${to.startTime}:00`
+              : to.startTime
             : null,
           end_time: to.endTime
-            ? new Date(to.endTime).toTimeString().slice(0, 5)
+            ? to.endTime.match(/^\d{2}:\d{2}$/)
+              ? `${to.endTime}:00`
+              : to.endTime
             : null,
           // If frontend sends an `id` for existing time-offs, include it for matching
           id: to.id || null,
@@ -1610,14 +1672,12 @@ exports.updateEmployee = async (req, res) => {
             // Check if anything actually changed
             const hasChanged =
               existingTimeOff.reason_id !== incomingTimeOff.reason_id ||
-              (existingTimeOff.start_date?.toISOString().split("T")[0] ||
-                null) !== incomingTimeOff.start_date ||
-              (existingTimeOff.end_date?.toISOString().split("T")[0] ||
-                null) !== incomingTimeOff.end_date ||
-              (existingTimeOff.start_time?.slice(0, 5) || null) !==
-                incomingTimeOff.start_time || // Compare slices
-              (existingTimeOff.end_time?.slice(0, 5) || null) !==
-                incomingTimeOff.end_time;
+              (existingTimeOff.start_date || null) !==
+                incomingTimeOff.start_date ||
+              (existingTimeOff.end_date || null) !== incomingTimeOff.end_date ||
+              (existingTimeOff.start_time || null) !==
+                incomingTimeOff.start_time ||
+              (existingTimeOff.end_time || null) !== incomingTimeOff.end_time;
 
             if (hasChanged) {
               toUpdate.push(incomingTimeOff);
@@ -1740,17 +1800,68 @@ exports.getEmployeesList = async (req, res) => {
         {
           model: User,
           attributes: ["id", "image_url", "first_name", "last_name"], // Get user data (image_url)
+          required: true,
         },
       ],
       where: {
         status: "active",
       },
-      order: [["createdAt", "DESC"]], // Optional: Order by latest created
+      order: [[{ model: User, as: "User" }, "first_name", "ASC"]], // Sort by User's first_name in ascending order
       attributes: ["id", "user_id", "type"], // Only get specific columns
     });
 
     res.status(200).json(employees);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+exports.updateTimesheetAmount = async (req, res) => {
+  try {
+    const { timesheet_amount } = req.body;
+
+    if (timesheet_amount === undefined || timesheet_amount === null) {
+      return res.status(400).json({
+        success: false,
+        message: "timesheet_amount is required",
+      });
+    }
+
+    if (timesheet_amount < 0) {
+      return res.status(400).json({
+        success: false,
+        message: "timesheet_amount cannot be negative",
+      });
+    }
+
+    const userId = req.user.userId;
+
+    // Check if admin config exists for this user
+    let adminConfig = await AdminConfig.findOne({
+      where: { user_id: userId },
+    });
+
+    if (adminConfig) {
+      // Update existing config
+      await adminConfig.update({ timesheet_amount });
+    } else {
+      // Create new config
+      adminConfig = await AdminConfig.create({
+        user_id: userId,
+        timesheet_amount,
+      });
+    }
+
+    return res.json({
+      success: true,
+      message: "Timesheet amount updated successfully",
+      timesheet_amount: parseFloat(adminConfig.timesheet_amount),
+    });
+  } catch (error) {
+    console.error("Error updating timesheet amount:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal Server Error",
+    });
   }
 };

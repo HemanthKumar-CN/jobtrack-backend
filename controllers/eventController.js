@@ -115,6 +115,9 @@ const createEvent = async (req, res) => {
       start_date,
       end_date,
       locations,
+      event_type,
+      status = "active", // Default to active if not provided
+      auto_confirm_schedule = false, // Default to false if not provided
     } = req.body;
 
     if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
@@ -127,8 +130,11 @@ const createEvent = async (req, res) => {
         event_name,
         project_code,
         project_comments,
-        start_date: moment(start_date).toDate(),
-        end_date: moment(end_date).toDate(),
+        start_date: start_date,
+        end_date: end_date,
+        event_type,
+        status,
+        auto_confirm_schedule,
       },
       { transaction: t },
     );
@@ -165,8 +171,9 @@ const createEvent = async (req, res) => {
                 assignment_id: assignment.id,
                 classification_id: cls.value,
                 class_type: classType,
-                start_time: cls.startTime,
-                end_time: cls.endTime,
+                start_time: cls.startTime || null,
+                end_time: cls.endTime || null,
+                need_number: cls.needNumber || null,
               },
               { transaction: t },
             );
@@ -237,22 +244,28 @@ const getAllEvents = async (req, res) => {
       };
     }
 
+    // Only get active events
+    whereCondition.status = "active";
+
     if (eventFilter) {
       whereCondition.id = eventFilter;
     }
 
-    // Tab-based filtering (current, past, future)
-    const today = moment().startOf("day");
+    // Use date strings for DATEONLY comparison
+    const todayDate = moment.utc().format("YYYY-MM-DD");
 
-    console.log(today, "++++++Today==");
+    console.log("Today Date:---", todayDate);
 
     if (tab === "Current") {
-      whereCondition.start_date = { [Op.lte]: today.toDate() };
-      whereCondition.end_date = { [Op.gte]: today.toDate() };
+      // Event is current if today falls between start_date and end_date (inclusive)
+      whereCondition.start_date = { [Op.lte]: todayDate };
+      whereCondition.end_date = { [Op.gte]: todayDate };
     } else if (tab === "Past") {
-      whereCondition.end_date = { [Op.lt]: today.toDate() };
+      // Event is past if end_date is before today
+      whereCondition.end_date = { [Op.lt]: todayDate };
     } else if (tab === "Future") {
-      whereCondition.start_date = { [Op.gt]: today.toDate() };
+      // Event is future if start_date is after today
+      whereCondition.start_date = { [Op.gt]: todayDate };
     }
 
     // Default sorting
@@ -267,6 +280,7 @@ const getAllEvents = async (req, res) => {
     }
 
     console.log("Order----:", order);
+    console.log("whereCondition:", whereCondition);
 
     const rawEvents = await Event.findAll({
       where: whereCondition,
@@ -300,15 +314,26 @@ const getAllEvents = async (req, res) => {
       order,
     });
 
-    // Add status: current/past/future to each event
+    // Add status using date-only comparison
     const events = rawEvents.map((event) => {
-      const start = moment(event.start_date);
-      const end = moment(event.end_date);
+      // Since we're using DATEONLY, the dates are already in YYYY-MM-DD format
+      const eventStartDate = event.start_date;
+      const eventEndDate = event.end_date;
+      const todayDate = moment.utc().format("YYYY-MM-DD");
+
+      console.log(
+        "Date comparison - Start:",
+        eventStartDate,
+        "End:",
+        eventEndDate,
+        "Today:",
+        todayDate,
+      );
 
       let status = "Future";
-      if (today.isBetween(start, end, undefined, "[]")) {
+      if (todayDate >= eventStartDate && todayDate <= eventEndDate) {
         status = "Current";
-      } else if (today.isAfter(end)) {
+      } else if (todayDate > eventEndDate) {
         status = "Past";
       }
 
@@ -328,6 +353,7 @@ const getAllEvents = async (req, res) => {
 const getEventList = async (req, res) => {
   try {
     const events = await Event.findAll({
+      where: { status: "active" }, // Only get active events
       attributes: ["id", "event_name"],
       order: [["event_name", "ASC"]], // Optional: sort alphabetically
     });
@@ -345,7 +371,7 @@ const getEventById = async (req, res) => {
 
     // Step 1: fetch the event itself
     const event = await Event.findOne({
-      where: { id },
+      where: { id, status: "active" }, // Only get active events
       attributes: [
         "id",
         "event_name",
@@ -353,6 +379,9 @@ const getEventById = async (req, res) => {
         "project_comments",
         "start_date",
         "end_date",
+        "event_type",
+        "status",
+        "auto_confirm_schedule",
       ],
     });
 
@@ -403,6 +432,7 @@ const getEventById = async (req, res) => {
                 "class_type",
                 "start_time",
                 "end_time",
+                "need_number",
               ],
               include: [
                 {
@@ -620,24 +650,29 @@ const updateEvent = async (req, res) => {
       start_date,
       end_date,
       locations,
+      event_type,
+      status = "active", // Default to active if not provided
+      auto_confirm_schedule = false, // Default to false if not provided
     } = req.body;
 
     // 🔎 Validate required fields
-    if (
-      !event_name ||
-      !project_code ||
-      !project_comments ||
-      !start_date ||
-      !end_date ||
-      !Array.isArray(locations)
-    ) {
+    if (!event_name || !start_date || !end_date || !Array.isArray(locations)) {
       await t.rollback();
       return res.status(400).json({ error: "Missing required fields" });
     }
 
     // 1️⃣ Update Event basic info
     const [updated] = await Event.update(
-      { event_name, project_code, project_comments, start_date, end_date },
+      {
+        event_name,
+        project_code,
+        project_comments,
+        start_date: start_date,
+        end_date: end_date,
+        event_type,
+        status,
+        auto_confirm_schedule,
+      },
       { where: { id }, transaction: t },
     );
 
@@ -738,14 +773,19 @@ const updateEvent = async (req, res) => {
                   assignment_id: eventContractor.id,
                   classification_id: cl.value,
                   class_type: type,
-                  start_time: cl.startTime,
-                  end_time: cl.endTime,
+                  start_time: cl.startTime || null,
+                  end_time: cl.endTime || null,
+                  need_number: cl.needNumber || null,
                 },
                 { transaction: t },
               );
             } else {
               await eventClass.update(
-                { start_time: cl.startTime, end_time: cl.endTime },
+                {
+                  start_time: cl.startTime || null,
+                  end_time: cl.endTime || null,
+                  need_number: cl.needNumber || null,
+                },
                 { transaction: t },
               );
             }
@@ -790,6 +830,52 @@ const updateEvent = async (req, res) => {
   }
 };
 
+const getActiveEventLocations = async (req, res) => {
+  try {
+    const { date } = req.params;
+
+    // ensure the date is valid
+    if (!date || isNaN(new Date(date))) {
+      return res.status(400).json({ error: "Invalid date format" });
+    }
+
+    const activeLocations = await Location.findAll({
+      where: { status: "active" },
+      attributes: ["id", "name"],
+      include: [
+        {
+          model: EventLocation,
+          as: "eventLocations",
+          required: true,
+          include: [
+            {
+              model: Event,
+              where: {
+                start_date: { [Op.lte]: date }, // start_date <= date
+                end_date: { [Op.gte]: date }, // end_date >= date
+                status: "active", // Only get active events
+              },
+              attributes: [
+                "id",
+                "event_name",
+                "start_date",
+                "end_date",
+                "status",
+              ],
+            },
+          ],
+          attributes: ["id", "event_id"],
+        },
+      ],
+    });
+
+    return res.json(activeLocations);
+  } catch (error) {
+    console.error("Error fetching active event locations:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   createEvent,
   getAllEvents,
@@ -797,4 +883,5 @@ module.exports = {
   updateEvent,
   deleteEvent,
   getEventList,
+  getActiveEventLocations,
 };

@@ -49,8 +49,8 @@ const getAllContractors = async (req, res) => {
 
     const contractors = await Contractor.findAll({
       where: whereClause,
-      limit: parseInt(limit),
-      offset: parseInt(offset),
+      // limit: parseInt(limit),
+      // offset: parseInt(offset),
       order,
     });
 
@@ -72,6 +72,7 @@ const getAllContractors = async (req, res) => {
 const getContractsDropdown = async (req, res) => {
   try {
     const contractors = await Contractor.findAll({
+      where: { status: "active" },
       attributes: ["id", "company_name"], // Fetch only id & company_name
       order: [["id", "ASC"]],
     });
@@ -92,11 +93,13 @@ const createContractor = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       status,
       zip,
       phone,
+      hourly_rate,
     } = req.body;
 
     console.log(req.body);
@@ -122,11 +125,13 @@ const createContractor = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       zip,
       status,
       phone,
+      hourly_rate,
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
     });
@@ -134,6 +139,19 @@ const createContractor = async (req, res) => {
     res.status(201).json(contractor);
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+const getAllContractorsWhoAreEmployers = async (req, res) => {
+  try {
+    const employers = await Contractor.findAll({
+      where: { is_employer: true },
+      attributes: ["id", "company_name"],
+      order: [["company_name", "ASC"]],
+    });
+    res.status(200).json({ employers });
+  } catch (error) {
+    res.status(500).json({ error: "Server error" });
   }
 };
 
@@ -148,10 +166,12 @@ const updateContractorById = async (req, res) => {
       email,
       address_1,
       address_2,
+      is_employer,
       city,
       state,
       zip,
       status,
+      hourly_rate,
       phone,
     } = req.body;
 
@@ -167,11 +187,13 @@ const updateContractorById = async (req, res) => {
     contractor.email = email;
     contractor.address_1 = address_1;
     contractor.address_2 = address_2;
+    contractor.is_employer = is_employer;
     contractor.city = city;
     contractor.state = state;
     contractor.zip = zip;
     contractor.phone = phone;
     contractor.status = status;
+    contractor.hourly_rate = hourly_rate;
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 
@@ -213,4 +235,5 @@ module.exports = {
   getContractorById,
   deleteContractor,
   getContractsDropdown,
+  getAllContractorsWhoAreEmployers,
 };

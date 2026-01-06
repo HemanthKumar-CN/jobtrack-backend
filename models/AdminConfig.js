@@ -22,6 +22,22 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.TEXT,
         allowNull: true,
       },
+      timesheet_amount: {
+        type: DataTypes.DECIMAL(10, 2),
+        allowNull: false,
+        defaultValue: 0.5,
+        validate: {
+          min: 0,
+        },
+        get() {
+          const value = this.getDataValue("timesheet_amount");
+          return value ? parseFloat(value) : 0.5;
+        },
+      },
+      phone_number: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "admin_configs",

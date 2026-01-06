@@ -10,6 +10,7 @@ const {
   EventLocationContractor,
   EventLocation,
   Contractor,
+  Timesheet,
 } = require("../models");
 exports.getAllUsers = async (req, res) => {
   try {
@@ -38,11 +39,11 @@ exports.userLogin = async (req, res) => {
     if (!isMatch)
       return res.status(401).json({ message: "Invalid credentials" });
 
-    // ✅ Generate JWT with role_name
+    // ✅ Generate JWT with role_name (no expiration - only expires on logout)
     const token = jwt.sign(
       { userId: user.id, roleName: user.Role.name }, // ✅ Store roleName instead of role_id
       process.env.JWT_SECRET,
-      { expiresIn: "1h" },
+      // No expiration set - token will only be invalidated on logout
     );
 
     // ✅ Set JWT in cookies
@@ -283,12 +284,40 @@ exports.scheduleRespond = async (req, res) => {
       return res.status(404).json({ error: "Schedule not found" });
     }
 
+    // Update schedule status
     schedule.status = status;
+    schedule.responded_at = new Date();
     await schedule.save();
 
-    return res
-      .status(200)
-      .json({ message: "Response updated", status: schedule.status });
+    // If status is confirmed, create a timesheet record
+    if (status === "confirmed") {
+      // Check if timesheet already exists to avoid duplicates
+      const existingTimesheet = await Timesheet.findOne({
+        where: { schedule_id: schedule.id },
+      });
+
+      if (!existingTimesheet) {
+        await Timesheet.create({
+          schedule_id: schedule.id,
+          status: "open",
+          // Other fields will use their default values
+          // actual_start: null (default)
+          // st: 0.00 (default)
+          // ot: 0.00 (default)
+          // dt: 0.00 (default)
+        });
+
+        console.log(`Timesheet created for schedule ID: ${schedule.id}`);
+      } else {
+        console.log(`Timesheet already exists for schedule ID: ${schedule.id}`);
+      }
+    }
+
+    return res.status(200).json({
+      message: "Response updated",
+      status: schedule.status,
+      timesheet_created: status === "confirmed",
+    });
   } catch (err) {
     console.error("Error updating schedule response:", err);
     return res.status(500).json({ error: "Internal Server Error" });

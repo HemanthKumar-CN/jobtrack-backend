@@ -1,7 +1,14 @@
 const express = require("express");
-const { getEmployeeAndLocations } = require("../controllers/reportController");
+const {
+  searchEmployees,
+  getEmployeeTimesheets,
+} = require("../controllers/reportController");
 const router = express.Router();
 
-router.get("/metadata", getEmployeeAndLocations); // Get
+// Search employees by name, ges, or four
+router.get("/search-employees", searchEmployees);
+
+// Get timesheet data for a specific employee
+router.get("/employee-timesheets", getEmployeeTimesheets);
 
 module.exports = router;

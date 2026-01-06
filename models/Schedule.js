@@ -79,6 +79,8 @@
 
 // module.exports = Schedule;
 
+const moment = require("moment");
+
 module.exports = (sequelize, DataTypes) => {
   const Schedule = sequelize.define(
     "Schedule",
@@ -135,6 +137,12 @@ module.exports = (sequelize, DataTypes) => {
       start_time: {
         type: DataTypes.DATE,
         allowNull: false,
+        get() {
+          const value = this.getDataValue("start_time");
+          if (!value) return null;
+          // Return as plain string without timezone conversion
+          return moment(value).format("YYYY-MM-DD HH:mm:ss");
+        },
       },
 
       status: {
@@ -176,6 +184,10 @@ module.exports = (sequelize, DataTypes) => {
     });
     Schedule.belongsTo(models.EventLocationContractor, {
       foreignKey: "event_location_contractor_id",
+    });
+    Schedule.hasOne(models.Timesheet, {
+      foreignKey: "schedule_id",
+      as: "timesheet",
     });
   };
 

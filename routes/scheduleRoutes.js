@@ -18,17 +18,31 @@ const {
   getClassList,
   eventList,
   getLatestConfirmedAssignments,
-  getScheduleByToken,
   getTimeOffReason,
+  getScheduledEventList,
+  getTimeSheetEventList,
+  getTimesheetdata,
+  updateTimesheet,
+  updateBulkTimesheets,
+  getEventView,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
 router.get("/allSchedules/:date", getSchedules);
-router.get("/eventList/event-location-contractors", eventList);
+router.get("/eventList/event-location-contractors/:date", eventList);
 router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
 router.get("/classification/class-list", getClassList);
 router.get("/timeoff/reason-list", getTimeOffReason);
+router.get(
+  "/event-schedule/right-sidebar/list/:eventDate",
+  getScheduledEventList,
+);
+router.get("/event-view/:eventDate", getEventView);
+router.get("/timesheet/eventList/:eventDate", getTimesheetdata);
+router.put("/timesheet/:timesheetId", updateTimesheet);
+router.put("/timesheet/bulk/update", updateBulkTimesheets);
+router.get("/timesheet/right-sidebar/list/:eventDate", getTimeSheetEventList);
 router.get("/", getWeeklySchedules);
 router.put("/:id", updateSchedule);
 router.get("/employee_schedule/:employee_id", employeeSchedules);
