@@ -5,6 +5,11 @@ const {
   Event,
   Employee,
   Contractor,
+  EventLocation,
+  EventLocationContractor,
+  ContractorClass,
+  Classification,
+  User,
 } = require("../models");
 const { Op, Sequelize } = require("sequelize");
 const moment = require("moment");
@@ -239,99 +244,324 @@ const dashboardLocation = async (req, res) => {
 
 const dashboardItems = async (req, res) => {
   try {
-    // Get current week's start and end date (Monday - Sunday)
-    const startOfWeek = moment().startOf("week").format("YYYY-MM-DD");
-    const endOfWeek = moment().endOf("week").format("YYYY-MM-DD");
+    const { date } = req.query;
 
-    // Count schedules where is_deleted is false and status is "scheduled"
-    const totalSchedules = await Schedule.count({
+    if (!date) {
+      return res.status(400).json({
+        success: false,
+        error: "Date parameter is required",
+      });
+    }
+
+    // Step 1: Get all events that are active on the given date
+    const events = await Event.findAll({
       where: {
-        is_deleted: false,
-        status: "scheduled",
+        start_date: { [Op.lte]: date },
+        end_date: { [Op.gte]: date },
       },
+      order: [["id", "ASC"]],
     });
 
-    // Count total employees
-    const totalEmployees = await Employee.count();
+    if (events.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "No events found for the specified date",
+        data: [],
+        pending_schedules: [],
+        summary: {
+          total_events: 0,
+          total_locations: 0,
+          total_confirmed: 0,
+          total_pending: 0,
+          total_declined: 0,
+        },
+      });
+    }
 
-    // Count total locations
-    const totalLocations = await Location.count();
+    const eventIds = events.map((event) => event.id);
 
-    // Count total contractors
-    const totalContractors = await Contractor.count();
-
-    // Get schedules for the current week
-    const schedules = await Schedule.findAll({
-      attributes: [
-        "employee_id",
-        "start_date",
-        "end_date",
-        "start_time",
-        "end_time",
+    // Step 2: Get all event locations for these events
+    const eventLocations = await EventLocation.findAll({
+      where: {
+        event_id: { [Op.in]: eventIds },
+      },
+      include: [
+        {
+          model: Location,
+          attributes: ["id", "name", "colour_code"],
+        },
       ],
+    });
+
+    const eventLocationIds = eventLocations.map((el) => el.id);
+
+    // Get unique location count
+    const uniqueLocations = new Set(eventLocations.map((el) => el.Location.id));
+
+    // Step 3: Get all event location contractors
+    const eventLocationContractors = await EventLocationContractor.findAll({
       where: {
-        is_deleted: false,
-        status: "scheduled",
-        start_date: { [Op.lte]: endOfWeek },
-        end_date: { [Op.gte]: startOfWeek },
+        event_location_id: { [Op.in]: eventLocationIds },
       },
-      raw: true,
+      include: [
+        {
+          model: Contractor,
+          attributes: ["id", "first_name", "last_name", "company_name"],
+        },
+      ],
     });
 
-    // Calculate total hours for each employee
-    const employeeHours = {};
+    const eventLocationContractorIds = eventLocationContractors.map(
+      (elc) => elc.id,
+    );
 
-    console.log(schedules, ";;lllllllllll", startOfWeek, endOfWeek);
+    // Step 4: Get all contractor classes
+    const contractorClasses = await ContractorClass.findAll({
+      where: {
+        assignment_id: { [Op.in]: eventLocationContractorIds },
+      },
+      include: [
+        {
+          model: Classification,
+          as: "classification",
+          attributes: ["id", "abbreviation", "description"],
+        },
+      ],
+    });
 
-    schedules.forEach((schedule) => {
-      const { employee_id, start_date, end_date, start_time, end_time } =
-        schedule;
+    const contractorClassIds = contractorClasses.map((cc) => cc.id);
 
-      // Parse dates and times
-      const startDate = moment(start_date);
-      const endDate = moment(end_date);
-      const startTime = moment(start_time, "HH:mm:ss");
-      const endTime = moment(end_time, "HH:mm:ss");
+    // Step 5: Get schedule counts for each contractor class for the given date
+    const schedules = await Schedule.findAll({
+      where: {
+        contractor_class_id: { [Op.in]: contractorClassIds },
+        is_deleted: false,
+        [Op.and]: [
+          Sequelize.where(
+            Sequelize.fn("DATE", Sequelize.col("Schedule.start_time")),
+            date,
+          ),
+        ],
+      },
+      attributes: [
+        "contractor_class_id",
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "schedule_count"],
+      ],
+      group: ["contractor_class_id"],
+    });
 
-      // Calculate days including start and end
-      const numDays = endDate.diff(startDate, "days") + 1;
+    // Step 6: Get pending schedules with employee details
+    const pendingSchedules = await Schedule.findAll({
+      where: {
+        contractor_class_id: { [Op.in]: contractorClassIds },
+        is_deleted: false,
+        status: "pending",
+        [Op.and]: [
+          Sequelize.where(
+            Sequelize.fn("DATE", Sequelize.col("Schedule.start_time")),
+            date,
+          ),
+        ],
+      },
+      include: [
+        {
+          model: Employee,
+          attributes: ["id", "user_id"],
+          include: [
+            {
+              model: User,
+              attributes: ["first_name", "last_name"],
+            },
+          ],
+        },
+        {
+          model: Event,
+          attributes: ["event_name"],
+        },
+        {
+          model: ContractorClass,
+          attributes: ["class_type"],
+          include: [
+            {
+              model: Classification,
+              as: "classification",
+              attributes: ["abbreviation"],
+            },
+          ],
+        },
+        {
+          model: EventLocationContractor,
+          attributes: ["contractor_id"],
+          include: [
+            {
+              model: Contractor,
+              attributes: ["company_name"],
+            },
+            {
+              model: EventLocation,
+              attributes: ["location_id"],
+              include: [
+                {
+                  model: Location,
+                  attributes: ["name"],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
 
-      // Calculate hours per day
-      const hoursPerDay = endTime.diff(startTime, "hours", true); // true ensures decimals
+    // Step 7: Get schedule status summary for the date
+    const statusSummary = await Schedule.findAll({
+      where: {
+        contractor_class_id: { [Op.in]: contractorClassIds },
+        is_deleted: false,
+        [Op.and]: [
+          Sequelize.where(
+            Sequelize.fn("DATE", Sequelize.col("Schedule.start_time")),
+            date,
+          ),
+        ],
+      },
+      attributes: [
+        "status",
+        [Sequelize.fn("COUNT", Sequelize.col("id")), "count"],
+      ],
+      group: ["status"],
+    });
 
-      // Total hours for this schedule
-      const totalHours = numDays * hoursPerDay;
+    // Step 8: Create lookup maps
+    const eventMap = {};
+    events.forEach((event) => {
+      eventMap[event.id] = event;
+    });
 
-      // Add to employee total
-      if (!employeeHours[employee_id]) {
-        employeeHours[employee_id] = 0;
+    const eventLocationMap = {};
+    eventLocations.forEach((el) => {
+      if (!eventLocationMap[el.event_id]) {
+        eventLocationMap[el.event_id] = [];
       }
-      employeeHours[employee_id] += totalHours;
+      eventLocationMap[el.event_id].push(el);
     });
 
-    console.log(employeeHours, "++++++++++++++++++++");
+    const eventLocationContractorMap = {};
+    eventLocationContractors.forEach((elc) => {
+      if (!eventLocationContractorMap[elc.event_location_id]) {
+        eventLocationContractorMap[elc.event_location_id] = [];
+      }
+      eventLocationContractorMap[elc.event_location_id].push(elc);
+    });
 
-    // Get employees working more than 40 hours
-    const overworkedEmployees = Object.entries(employeeHours)
-      .filter(([_, hours]) => hours > 40)
-      .map(([employee_id, total_hours]) => ({
-        employee_id: parseInt(employee_id),
-        total_hours: total_hours.toFixed(2),
-      }));
+    const contractorClassMap = {};
+    contractorClasses.forEach((cc) => {
+      if (!contractorClassMap[cc.assignment_id]) {
+        contractorClassMap[cc.assignment_id] = [];
+      }
+      contractorClassMap[cc.assignment_id].push(cc);
+    });
 
-    return res.json({
+    const scheduleCountMap = {};
+    schedules.forEach((sc) => {
+      const classId = sc.getDataValue("contractor_class_id");
+      const count = parseInt(sc.getDataValue("schedule_count"));
+      scheduleCountMap[classId] = count;
+    });
+
+    // Process status summary
+    const summary = {
+      total_events: events.length,
+      total_locations: uniqueLocations.size,
+      total_confirmed: 0,
+      total_pending: 0,
+      total_declined: 0,
+    };
+
+    statusSummary.forEach((status) => {
+      const statusValue = status.getDataValue("status");
+      const count = parseInt(status.getDataValue("count"));
+      if (statusValue === "confirmed") summary.total_confirmed = count;
+      if (statusValue === "pending") summary.total_pending = count;
+      if (statusValue === "declined") summary.total_declined = count;
+    });
+
+    // Step 9: Format pending schedules
+    const formattedPendingSchedules = pendingSchedules.map((schedule) => ({
+      schedule_id: schedule.id,
+      employee_name: schedule.Employee?.User
+        ? `${schedule.Employee.User.first_name} ${schedule.Employee.User.last_name}`
+        : "N/A",
+      event_name: schedule.Event?.event_name || "N/A",
+      location_name:
+        schedule.EventLocationContractor?.EventLocation?.Location?.name ||
+        "N/A",
+      contractor_company:
+        schedule.EventLocationContractor?.Contractor?.company_name || "N/A",
+      classification:
+        schedule.ContractorClass?.classification?.abbreviation || "N/A",
+      start_time: schedule.start_time,
+    }));
+
+    // Step 10: Build the result array with all combinations
+    const result = [];
+
+    events.forEach((event) => {
+      const eventLocationsList = eventLocationMap[event.id] || [];
+
+      eventLocationsList.forEach((eventLocation) => {
+        const eventLocationContractorsList =
+          eventLocationContractorMap[eventLocation.id] || [];
+
+        eventLocationContractorsList.forEach((eventLocationContractor) => {
+          const contractorClassesList =
+            contractorClassMap[eventLocationContractor.id] || [];
+
+          contractorClassesList.forEach((contractorClass) => {
+            const scheduleCount = scheduleCountMap[contractorClass.id] || 0;
+
+            result.push({
+              event_id: event.id,
+              event_name: event.event_name,
+              event_type: event.event_type,
+              project_code: event.project_code,
+              location_id: eventLocation.Location.id,
+              location_name: eventLocation.Location.name,
+              location_colour_code: eventLocation.Location.colour_code,
+              event_location_contractor_id: eventLocationContractor.id,
+              contractor_id: eventLocationContractor.Contractor.id,
+              contractor_name: `${eventLocationContractor.Contractor.first_name} ${eventLocationContractor.Contractor.last_name}`,
+              contractor_company:
+                eventLocationContractor.Contractor.company_name,
+              contractor_class_id: contractorClass.id,
+              classification_id: contractorClass.classification.id,
+              classification_abbreviation:
+                contractorClass.classification.abbreviation,
+              classification_description:
+                contractorClass.classification.description,
+              class_type: contractorClass.class_type,
+              need_number: contractorClass.need_number,
+              schedule_count: scheduleCount,
+            });
+          });
+        });
+      });
+    });
+
+    return res.status(200).json({
       success: true,
-      totalSchedules,
-      overworkedEmployees,
-      totalContractors,
-      totalEmployees,
-      totalLocations,
+      message: "Dashboard items retrieved successfully",
+      data: result,
+      pending_schedules: formattedPendingSchedules,
+      summary: summary,
+      total_combinations: result.length,
+      date: date,
     });
   } catch (error) {
-    console.error("Error fetching total schedules:", error);
-    return res
-      .status(500)
-      .json({ success: false, error: "Internal Server Error" });
+    console.error("Error fetching dashboard items:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
 
