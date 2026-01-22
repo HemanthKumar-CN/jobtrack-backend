@@ -138,7 +138,8 @@ const createContractor = async (req, res) => {
 
     res.status(201).json(contractor);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log(error, "Error creating contractor");
+    res.status(500).json({ error: error });
   }
 };
 
