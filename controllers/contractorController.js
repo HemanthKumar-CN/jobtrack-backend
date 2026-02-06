@@ -105,14 +105,7 @@ const createContractor = async (req, res) => {
     console.log(req.body);
 
     // Check for required fields
-    if (
-      !first_name ||
-      !last_name ||
-      !company_name ||
-      !email ||
-      !city ||
-      !phone
-    ) {
+    if (!first_name || !last_name || !company_name || !city || !phone) {
       return res
         .status(400)
         .json({ error: "All required fields must be filled" });
