@@ -193,3 +193,5 @@ module.exports = (sequelize, DataTypes) => {
 
   return Schedule;
 };
+
+// log check
