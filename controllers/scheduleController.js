@@ -579,11 +579,31 @@ const createBulkSchedule = async (req, res) => {
       }
     }
 
-    await Schedule.bulkCreate(scheduleEntries, { returning: true });
+    const createdSchedules = await Schedule.bulkCreate(scheduleEntries, {
+      returning: true,
+    });
+
+    // Create timesheets for auto-confirmed schedules
+    const autoConfirmedSchedules = createdSchedules.filter(
+      (schedule) => schedule.status === "confirmed",
+    );
+
+    if (autoConfirmedSchedules.length > 0) {
+      const timesheetEntries = autoConfirmedSchedules.map((schedule) => ({
+        schedule_id: schedule.id,
+        status: "open",
+      }));
+
+      await Timesheet.bulkCreate(timesheetEntries);
+      console.log(
+        `📋 Created ${timesheetEntries.length} timesheets for auto-confirmed schedules`,
+      );
+    }
 
     return res.status(201).json({
       message: "Bulk schedules created successfully",
       count: scheduleEntries.length,
+      timesheets_created: autoConfirmedSchedules.length,
     });
   } catch (err) {
     console.error(err);
