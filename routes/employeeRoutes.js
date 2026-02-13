@@ -12,6 +12,7 @@ router.put(
   "/notification-preference",
   employeeController.updateNotificationPreference,
 );
+router.put("/timesheet-amount", employeeController.updateTimesheetAmount);
 router.post(
   "/upload-profile-pic",
   upload.single("image"),

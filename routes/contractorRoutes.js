@@ -7,6 +7,7 @@ const {
   deleteContractor,
   getContractorById,
   getContractsDropdown,
+  getAllContractorsWhoAreEmployers,
 } = require("../controllers/contractorController");
 
 // GET all contractors
@@ -15,6 +16,8 @@ router.get("/list", getContractsDropdown);
 
 // POST a new contractor
 router.post("/", createContractor);
+
+router.get("/employer-list", getAllContractorsWhoAreEmployers); // Get all employers
 
 // PUT (update) a contractor by ID
 router.put("/:id", updateContractorById);

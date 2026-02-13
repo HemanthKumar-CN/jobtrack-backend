@@ -123,6 +123,28 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "active",
       },
+      sms_opt_in: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+      sms_opt_in_date: {
+        type: DataTypes.DATEONLY,
+      },
+      sms_opt_out_date: {
+        type: DataTypes.DATEONLY,
+      },
+      email_opt_in: {
+        type: DataTypes.BOOLEAN,
+        allowNull: false,
+        defaultValue: true,
+      },
+      email_opt_in_date: {
+        type: DataTypes.DATEONLY,
+      },
+      email_opt_out_date: {
+        type: DataTypes.DATEONLY,
+      },
     },
     {
       tableName: "employees",
