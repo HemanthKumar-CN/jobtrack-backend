@@ -13,7 +13,7 @@ const app = express();
 // ✅ Use cookie-parser to parse cookies
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || "https://dev.schedyl.com", // ✅ Set your frontend URL
+    origin: process.env.CLIENT_URL || "http://localhost:5173", // ✅ Set your frontend URL
     credentials: true, // ✅ Allow credentials (cookies, authorization headers)
   }),
 ); // Allow all origins (for development)
@@ -29,6 +29,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Serve u
 // Import routes
 const userRoutes = require("./routes/userRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
+const employeeReviewRoutes = require("./routes/employeeReviewRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const contractorRoutes = require("./routes/contractorRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -75,6 +76,7 @@ app.post("/api/twilio/sms-reply", async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use(authenticateUser, require("./routes/locationRoutes"));
 app.use("/api/employees", authenticateUser, employeeRoutes);
+app.use("/api/employee-reviews", authenticateUser, employeeReviewRoutes);
 app.use("/api/schedules", authenticateUser, scheduleRoutes);
 app.use("/api/contractors", authenticateUser, contractorRoutes);
 app.use("/api/events", authenticateUser, eventRoutes);
