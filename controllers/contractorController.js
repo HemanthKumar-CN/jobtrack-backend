@@ -105,14 +105,7 @@ const createContractor = async (req, res) => {
     console.log(req.body);
 
     // Check for required fields
-    if (
-      !first_name ||
-      !last_name ||
-      !company_name ||
-      !email ||
-      !city ||
-      !phone
-    ) {
+    if (!first_name || !last_name || !company_name || !city) {
       return res
         .status(400)
         .json({ error: "All required fields must be filled" });
@@ -125,20 +118,25 @@ const createContractor = async (req, res) => {
       email,
       address_1,
       address_2,
-      is_employer,
+      is_employer: is_employer === "true" || is_employer === true,
       city,
       state,
       zip,
       status,
       phone,
-      hourly_rate,
+      hourly_rate:
+        hourly_rate && hourly_rate !== "" ? parseFloat(hourly_rate) : null,
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
     });
 
     res.status(201).json(contractor);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.log(error, "Error creating contractor");
+    res.status(500).json({
+      error: error.message || "Failed to create contractor",
+      errorObject: error,
+    });
   }
 };
 
@@ -187,20 +185,21 @@ const updateContractorById = async (req, res) => {
     contractor.email = email;
     contractor.address_1 = address_1;
     contractor.address_2 = address_2;
-    contractor.is_employer = is_employer;
+    contractor.is_employer = is_employer === "true" || is_employer === true;
     contractor.city = city;
     contractor.state = state;
     contractor.zip = zip;
     contractor.phone = phone;
     contractor.status = status;
-    contractor.hourly_rate = hourly_rate;
+    contractor.hourly_rate =
+      hourly_rate && hourly_rate !== "" ? parseFloat(hourly_rate) : null;
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 
     await contractor.save();
     res.status(200).json(contractor);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: error.message, errorObject: error });
   }
 };
 

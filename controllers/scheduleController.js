@@ -579,11 +579,31 @@ const createBulkSchedule = async (req, res) => {
       }
     }
 
-    await Schedule.bulkCreate(scheduleEntries, { returning: true });
+    const createdSchedules = await Schedule.bulkCreate(scheduleEntries, {
+      returning: true,
+    });
+
+    // Create timesheets for auto-confirmed schedules
+    const autoConfirmedSchedules = createdSchedules.filter(
+      (schedule) => schedule.status === "confirmed",
+    );
+
+    if (autoConfirmedSchedules.length > 0) {
+      const timesheetEntries = autoConfirmedSchedules.map((schedule) => ({
+        schedule_id: schedule.id,
+        status: "open",
+      }));
+
+      await Timesheet.bulkCreate(timesheetEntries);
+      console.log(
+        `📋 Created ${timesheetEntries.length} timesheets for auto-confirmed schedules`,
+      );
+    }
 
     return res.status(201).json({
       message: "Bulk schedules created successfully",
       count: scheduleEntries.length,
+      timesheets_created: autoConfirmedSchedules.length,
     });
   } catch (err) {
     console.error(err);
@@ -3648,6 +3668,160 @@ const getEventView = async (req, res) => {
   }
 };
 
+// ✅ API 1: Resend notification for existing schedule
+const resendScheduleNotification = async (req, res) => {
+  try {
+    const { scheduleId } = req.params;
+
+    // Fetch the schedule with related data
+    const schedule = await Schedule.findOne({
+      where: { id: scheduleId, is_deleted: false },
+      include: [
+        {
+          model: Employee,
+          attributes: ["id", "phone", "sms_opt_in", "email_opt_in"],
+          include: [
+            {
+              model: User,
+              attributes: ["email", "first_name", "last_name"],
+            },
+          ],
+        },
+        {
+          model: Event,
+          attributes: ["event_name"],
+        },
+        {
+          model: EventLocationContractor,
+          include: {
+            model: EventLocation,
+            include: {
+              model: Location,
+              attributes: ["name"],
+            },
+          },
+        },
+      ],
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    // Prepare notification data
+    const scheduleLink = `${process.env.FRONTEND_URL}/schedule/${schedule.response_token}`;
+    const formattedTime = moment(schedule.start_time).format(
+      "MMM DD, YYYY hh:mm A",
+    );
+
+    // Fetch admin config for message template
+    const adminConfig = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+    });
+
+    const locationName =
+      schedule.EventLocationContractor?.EventLocation?.Location?.name ||
+      "Location TBD";
+
+    let smsSent = false;
+    let emailSent = false;
+
+    // ✅ Send SMS only if employee has opted in
+    if (schedule.Employee.sms_opt_in && schedule.Employee.phone) {
+      const baseMessage = adminConfig?.new_schedule_message;
+      const messageBody =
+        baseMessage
+          .replace("[Event]", schedule.Event.event_name)
+          .replace("[Location]", locationName)
+          .replace("[Start Date]", formattedTime)
+          .replace("[Start Time]", formattedTime) +
+        `. Confirm 👉 ${scheduleLink}`;
+
+      try {
+        await client.messages.create({
+          body: messageBody,
+          from: process.env.TWILIO_PHONE_NUMBER || "+17087345990",
+          to: schedule.Employee.phone,
+        });
+        console.log("📱 SMS sent to:", schedule.Employee.phone);
+        smsSent = true;
+      } catch (smsError) {
+        console.error("❌ Failed to send SMS:", smsError);
+      }
+    } else if (!schedule.Employee.sms_opt_in) {
+      console.log("⚠️ Employee has opted out of SMS notifications");
+    }
+
+    // ✅ Send Email only if employee has opted in
+    if (schedule.Employee.email_opt_in && schedule.Employee.User?.email) {
+      const emailSubject = "Schedule Reminder";
+      const emailBody = `
+        <p>Hi ${schedule.Employee.User.first_name},</p>
+        <p>This is a reminder about your scheduled assignment for <strong>${schedule.Event.event_name}</strong> at <strong>${locationName}</strong>.</p>
+        <p><strong>Date & Time:</strong> ${formattedTime}</p>
+        <p>Please confirm your availability by clicking the link below:</p>
+        <p><a href="${scheduleLink}" target="_blank">Confirm Schedule</a></p>
+        <p>Thanks,<br>Schedyl Team</p>
+      `;
+
+      try {
+        await sendEmail(schedule.Employee.User.email, emailSubject, emailBody);
+        console.log("📧 Email sent to:", schedule.Employee.User.email);
+        emailSent = true;
+      } catch (emailError) {
+        console.error("❌ Failed to send email:", emailError);
+      }
+    } else if (!schedule.Employee.email_opt_in) {
+      console.log("⚠️ Employee has opted out of email notifications");
+    }
+
+    return res.status(200).json({
+      message: "Notification processed successfully",
+      smsSent,
+      emailSent,
+      smsOptIn: schedule.Employee.sms_opt_in,
+      emailOptIn: schedule.Employee.email_opt_in,
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// ✅ API 2: Confirm existing schedule
+const confirmSchedule = async (req, res) => {
+  try {
+    const { scheduleId } = req.params;
+
+    // Find the schedule
+    const schedule = await Schedule.findOne({
+      where: { id: scheduleId, is_deleted: false },
+    });
+
+    if (!schedule) {
+      return res.status(404).json({ error: "Schedule not found" });
+    }
+
+    // Update status to confirmed
+    await schedule.update({
+      status: "confirmed",
+      responded_at: new Date(),
+    });
+
+    return res.status(200).json({
+      message: "Schedule confirmed successfully",
+      schedule: {
+        id: schedule.id,
+        status: schedule.status,
+        responded_at: schedule.responded_at,
+      },
+    });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   createSchedule,
   createBulkSchedule,
@@ -3673,4 +3847,6 @@ module.exports = {
   updateTimesheet,
   updateBulkTimesheets,
   getEventView,
+  resendScheduleNotification,
+  confirmSchedule,
 };
