@@ -19,6 +19,7 @@ const {
   ContractorClass,
   AdminConfig,
   Timesheet,
+  EmployeeReview,
 } = require("../models");
 const moment = require("moment");
 const sequelize = require("../config/database");
@@ -419,10 +420,13 @@ const createSchedule = async (req, res) => {
 // Update Schedule
 
 const createBulkSchedule = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
   try {
     const scheduleData = req.body;
 
     if (!scheduleData || typeof scheduleData !== "object") {
+      await transaction.rollback();
       return res.status(400).json({ error: "Invalid payload structure" });
     }
 
@@ -438,6 +442,7 @@ const createBulkSchedule = async (req, res) => {
     // ========== TEMPORARY BLOCK END ==========
 
     const scheduleEntries = [];
+    const employeeReviewsToDelete = [];
 
     console.log(scheduleData, "/..// Schedule data ***********");
 
@@ -451,9 +456,29 @@ const createBulkSchedule = async (req, res) => {
       } = details;
 
       if (!eventId || !startTime) {
+        await transaction.rollback();
         return res.status(400).json({
           error: `Missing required fields for employee ${employeeId}`,
         });
+      }
+
+      // Extract date from startTime for review check
+      const scheduleDate = moment(startTime).format("YYYY-MM-DD");
+
+      // Check if review exists for this employee on this date
+      const existingReview = await EmployeeReview.findOne({
+        where: {
+          employee_id: parseInt(employeeId),
+          review_date: scheduleDate,
+        },
+        transaction,
+      });
+
+      if (existingReview) {
+        employeeReviewsToDelete.push(existingReview.id);
+        console.log(
+          `📋 Review found for employee ${employeeId} on ${scheduleDate} - will be deleted`,
+        );
       }
 
       const responseToken = crypto.randomBytes(16).toString("hex");
@@ -579,8 +604,22 @@ const createBulkSchedule = async (req, res) => {
       }
     }
 
+    // Delete all queued employee reviews
+    if (employeeReviewsToDelete.length > 0) {
+      await EmployeeReview.destroy({
+        where: {
+          id: employeeReviewsToDelete,
+        },
+        transaction,
+      });
+      console.log(
+        `🗑️ Deleted ${employeeReviewsToDelete.length} employee reviews`,
+      );
+    }
+
     const createdSchedules = await Schedule.bulkCreate(scheduleEntries, {
       returning: true,
+      transaction,
     });
 
     // Create timesheets for auto-confirmed schedules
@@ -594,18 +633,22 @@ const createBulkSchedule = async (req, res) => {
         status: "open",
       }));
 
-      await Timesheet.bulkCreate(timesheetEntries);
+      await Timesheet.bulkCreate(timesheetEntries, { transaction });
       console.log(
         `📋 Created ${timesheetEntries.length} timesheets for auto-confirmed schedules`,
       );
     }
 
+    await transaction.commit();
+
     return res.status(201).json({
       message: "Bulk schedules created successfully",
       count: scheduleEntries.length,
       timesheets_created: autoConfirmedSchedules.length,
+      reviews_deleted: employeeReviewsToDelete.length,
     });
   } catch (err) {
+    await transaction.rollback();
     console.error(err);
     return res.status(500).json({ error: err.message });
   }
