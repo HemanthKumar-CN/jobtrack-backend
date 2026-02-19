@@ -31,6 +31,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads"))); // Serve u
 // Import routes
 const userRoutes = require("./routes/userRoutes");
 const employeeRoutes = require("./routes/employeeRoutes");
+const employeeReviewRoutes = require("./routes/employeeReviewRoutes");
 const scheduleRoutes = require("./routes/scheduleRoutes");
 const contractorRoutes = require("./routes/contractorRoutes");
 const eventRoutes = require("./routes/eventRoutes");
@@ -145,6 +146,7 @@ app.post("/api/email/reply", async (req, res) => {
 app.use("/api/users", userRoutes);
 app.use(authenticateUser, require("./routes/locationRoutes"));
 app.use("/api/employees", authenticateUser, employeeRoutes);
+app.use("/api/employee-reviews", authenticateUser, employeeReviewRoutes);
 app.use("/api/schedules", authenticateUser, scheduleRoutes);
 app.use("/api/contractors", authenticateUser, contractorRoutes);
 app.use("/api/events", authenticateUser, eventRoutes);
@@ -296,6 +298,15 @@ sequelize
   .authenticate()
   .then(() => console.log("Database connected..."))
   .catch((err) => console.error("Error connecting to database:", err));
+
+// ✅ Global error handler (last middleware)
+app.use((err, req, res, next) => {
+  console.error("🔥 Uncaught error:", err.stack || err);
+  res.status(500).json({
+    success: false,
+    error: err || "Internal Server Error",
+  });
+});
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));

@@ -172,6 +172,11 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "employee_id",
       as: "timeOffs",
     });
+
+    Employee.hasMany(models.EmployeeReview, {
+      foreignKey: "employee_id",
+      as: "reviews",
+    });
   };
 
   return Employee;

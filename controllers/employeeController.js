@@ -9,6 +9,7 @@ const {
   RecurringBlockedTime,
   EmployeeRestriction,
   AdminConfig,
+  EmployeeReview,
 } = require("../models");
 const crypto = require("crypto");
 const bcrypt = require("bcrypt");
@@ -402,6 +403,34 @@ exports.getNotScheduledEmployees = async (req, res) => {
     };
     const dayLetter = dayLetterMap[inputDate.day()];
 
+    // 🔸 Step 3: Fetch employee reviews for the given date
+    const reviews = await EmployeeReview.findAll({
+      where: {
+        review_date: date,
+      },
+      attributes: ["employee_id", "id", "comments", "reviewed_by"],
+      include: [
+        {
+          model: User,
+          as: "reviewer",
+          attributes: ["first_name", "last_name"],
+        },
+      ],
+    });
+
+    // Create a map of employee_id to review data
+    const reviewMap = {};
+    reviews.forEach((review) => {
+      reviewMap[review.employee_id] = {
+        review_id: review.id,
+        comments: review.comments,
+        reviewed_by: review.reviewed_by,
+        reviewer_name: review.reviewer
+          ? `${review.reviewer.first_name} ${review.reviewer.last_name}`
+          : null,
+      };
+    });
+
     let restrictionIds = [];
     if (restriction) {
       try {
@@ -479,6 +508,23 @@ exports.getNotScheduledEmployees = async (req, res) => {
           }
         }
 
+        // Filter timeOffs for the current date
+        const applicableTimeOffs = emp.timeOffs.filter((t) => {
+          return (
+            moment(t.start_date).isSameOrBefore(inputDate, "day") &&
+            moment(t.end_date).isSameOrAfter(inputDate, "day")
+          );
+        });
+
+        // Filter recurringBlockedTimes for the current date and day
+        const applicableBlockedTimes = emp.recurringBlockedTimes.filter((b) => {
+          return (
+            b.day_of_week === dayLetter &&
+            moment(b.start_date).isSameOrBefore(inputDate, "day") &&
+            moment(b.end_date).isSameOrAfter(inputDate, "day")
+          );
+        });
+
         return {
           id: emp.id,
           user_id: emp.user_id,
@@ -491,6 +537,9 @@ exports.getNotScheduledEmployees = async (req, res) => {
           subtext,
           type: emp.type,
           snf: emp.snf,
+          timeOffs: applicableTimeOffs,
+          recurringBlockedTimes: applicableBlockedTimes,
+          review: reviewMap[emp.id] || null, // Include review data if exists
         };
       })
       .filter((emp) => {
