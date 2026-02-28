@@ -2575,7 +2575,7 @@ const getTimesheetdata = async (req, res) => {
           include: [
             {
               model: Employee,
-              attributes: ["id", "four", "ges"],
+              attributes: ["id", "four", "ges", "fdc", "snf", "number_id"],
               include: [userInclude],
             },
             eventInclude,
@@ -2616,6 +2616,7 @@ const getTimesheetdata = async (req, res) => {
                         "company_name",
                         "email",
                         "status",
+                        "employee_id_field",
                       ],
                     },
                   ],
@@ -2844,19 +2845,35 @@ const getTimesheetdata = async (req, res) => {
           company_name: contractor.company_name,
           contractor_email: contractor.email,
           contractor_status: contractor.status,
+          employee_id_field: contractor.employee_id_field || "four",
+          classifications: {}, // Group employees by classification
+        };
+      }
+
+      const contractorGroup =
+        groupedData[event.id].locations[location.id].contractors[contractor.id];
+
+      // Create classification group if doesn't exist
+      if (!contractorGroup.classifications[classification.id]) {
+        contractorGroup.classifications[classification.id] = {
+          classification_id: classification.id,
+          classification_abbreviation: classification.abbreviation,
+          classification_description: classification.description,
           employees: [],
         };
       }
 
-      // Add employee timesheet data
-      groupedData[event.id].locations[location.id].contractors[
-        contractor.id
-      ].employees.push({
-        sn: index + 1, // Serial number
+      // Add employee timesheet data to the classification group
+      contractorGroup.classifications[classification.id].employees.push({
         employee_id: employee.id,
         employee_name: `${user.first_name} ${user.last_name}`,
-        four: employee.four, // Added four attribute
-        ges: employee.ges, // Added ges attribute
+        first_name: user.first_name,
+        last_name: user.last_name,
+        four: employee.four,
+        ges: employee.ges,
+        fdc: employee.fdc,
+        snf: employee.snf,
+        number_id: employee.number_id,
         classification: {
           id: classification.id,
           abbreviation: classification.abbreviation,
@@ -2878,12 +2895,60 @@ const getTimesheetdata = async (req, res) => {
       });
     });
 
-    // Step 3: Transform grouped data to flat array structure
+    // Step 3: Transform grouped data to flat array structure with sorted classifications
     const transformedData = [];
 
     Object.values(groupedData).forEach((event) => {
       Object.values(event.locations).forEach((location) => {
         Object.values(location.contractors).forEach((contractor) => {
+          // Convert classifications object to array and sort by abbreviation (A-Z)
+          const classificationsArray = Object.values(contractor.classifications)
+            .sort((a, b) => {
+              const abbrevA = (
+                a.classification_abbreviation || ""
+              ).toLowerCase();
+              const abbrevB = (
+                b.classification_abbreviation || ""
+              ).toLowerCase();
+              return abbrevA.localeCompare(abbrevB);
+            })
+            .map((classGroup) => {
+              // Sort employees within each classification by last_name (A-Z), then start_time (ascending)
+              const sortedEmployees = [...classGroup.employees].sort((a, b) => {
+                // First sort by last_name (A-Z)
+                const lastNameA = (a.last_name || "").toLowerCase();
+                const lastNameB = (b.last_name || "").toLowerCase();
+                if (lastNameA !== lastNameB) {
+                  return lastNameA.localeCompare(lastNameB);
+                }
+                // Then sort by start_time (ascending)
+                const timeA = new Date(a.start_time).getTime();
+                const timeB = new Date(b.start_time).getTime();
+                return timeA - timeB;
+              });
+
+              return {
+                classification_id: classGroup.classification_id,
+                classification_abbreviation:
+                  classGroup.classification_abbreviation,
+                classification_description:
+                  classGroup.classification_description,
+                employees: sortedEmployees,
+                open_count: sortedEmployees.filter(
+                  (emp) => emp.timesheet.status === "open",
+                ).length,
+                complete_count: sortedEmployees.filter(
+                  (emp) => emp.timesheet.status === "complete",
+                ).length,
+              };
+            });
+
+          // Calculate total employees across all classifications
+          const totalEmployees = classificationsArray.reduce(
+            (sum, classGroup) => sum + classGroup.employees.length,
+            0,
+          );
+
           transformedData.push({
             event_id: event.event_id,
             event_name: event.event_name,
@@ -2900,8 +2965,9 @@ const getTimesheetdata = async (req, res) => {
             company_name: contractor.company_name,
             contractor_email: contractor.contractor_email,
             contractor_status: contractor.contractor_status,
-            employees: contractor.employees,
-            total_employees: contractor.employees.length,
+            employee_id_field: contractor.employee_id_field || "four",
+            classifications: classificationsArray,
+            total_employees: totalEmployees,
           });
         });
       });
