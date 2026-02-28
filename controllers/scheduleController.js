@@ -2727,6 +2727,16 @@ const getTimesheetdata = async (req, res) => {
       });
     }
 
+    // Fetch all contractors with employee_id_field for lookup (workaround for nested include issue)
+    const allContractors = await Contractor.findAll({
+      attributes: ["id", "employee_id_field"],
+      raw: true,
+    });
+    const contractorIdFieldMap = {};
+    allContractors.forEach((c) => {
+      contractorIdFieldMap[c.id] = c.employee_id_field || "four";
+    });
+
     // Step 2: Group timesheets by Event -> Location -> Contractor hierarchy
     const groupedData = {};
 
@@ -2845,7 +2855,7 @@ const getTimesheetdata = async (req, res) => {
           company_name: contractor.company_name,
           contractor_email: contractor.email,
           contractor_status: contractor.status,
-          employee_id_field: contractor.employee_id_field || "four",
+          employee_id_field: contractorIdFieldMap[contractor.id] || "four",
           classifications: {}, // Group employees by classification
         };
       }
