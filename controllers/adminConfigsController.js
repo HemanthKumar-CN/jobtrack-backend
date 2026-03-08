@@ -106,8 +106,34 @@ const updatePhoneNumber = async (req, res) => {
   }
 };
 
+const updateOrganization = async (req, res) => {
+  try {
+    const { organization } = req.body;
+
+    let config = await AdminConfig.findOne({
+      where: { user_id: req.user.userId },
+    });
+
+    if (!config) {
+      config = await AdminConfig.create({
+        user_id: req.user.userId,
+        organization: organization || null,
+      });
+    } else {
+      config.organization = organization || null;
+      await config.save();
+    }
+
+    res.json({ success: true, data: config });
+  } catch (error) {
+    console.error("Error updating organization in AdminConfig:", error);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
 module.exports = {
   getAdminConfigs,
   createOrUpdateAdminConfig,
   updatePhoneNumber,
+  updateOrganization,
 };
