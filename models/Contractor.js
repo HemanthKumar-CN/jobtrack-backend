@@ -60,6 +60,11 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      employee_id_field: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: "four",
+      },
     },
     {
       tableName: "Contractors",

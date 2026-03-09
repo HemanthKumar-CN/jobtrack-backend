@@ -730,12 +730,13 @@ exports.getEmployeeProfile = async (req, res) => {
       attributes: ["notification_preference"],
     });
 
-    // Fetch timesheet_amount and phone_number from admin_configs
+    // Fetch timesheet_amount, phone_number and organization from admin_configs
     let timesheetAmount = 0.5; // Default value
     let testPhoneNumber = null;
+    let organization = null;
     const adminConfig = await AdminConfig.findOne({
       where: { user_id: req.user.userId },
-      attributes: ["timesheet_amount", "phone_number"],
+      attributes: ["timesheet_amount", "phone_number", "organization"],
     });
     if (adminConfig) {
       if (adminConfig.timesheet_amount) {
@@ -743,6 +744,9 @@ exports.getEmployeeProfile = async (req, res) => {
       }
       if (adminConfig.phone_number) {
         testPhoneNumber = adminConfig.phone_number;
+      }
+      if (adminConfig.organization) {
+        organization = adminConfig.organization;
       }
     }
 
@@ -753,6 +757,7 @@ exports.getEmployeeProfile = async (req, res) => {
         : "email", // Default to "email"
       timesheet_amount: timesheetAmount,
       test_phone_number: testPhoneNumber,
+      organization: organization,
     });
   } catch (error) {
     console.error("Error fetching user profile:", error);

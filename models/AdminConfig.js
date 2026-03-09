@@ -38,6 +38,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      organization: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "admin_configs",

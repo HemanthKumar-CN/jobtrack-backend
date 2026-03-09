@@ -100,6 +100,7 @@ const createContractor = async (req, res) => {
       zip,
       phone,
       hourly_rate,
+      employee_id_field,
     } = req.body;
 
     console.log(req.body);
@@ -126,6 +127,7 @@ const createContractor = async (req, res) => {
       phone,
       hourly_rate:
         hourly_rate && hourly_rate !== "" ? parseFloat(hourly_rate) : null,
+      employee_id_field: employee_id_field || "four",
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
     });
@@ -171,6 +173,7 @@ const updateContractorById = async (req, res) => {
       status,
       hourly_rate,
       phone,
+      employee_id_field,
     } = req.body;
 
     const contractor = await Contractor.findByPk(id);
@@ -193,6 +196,8 @@ const updateContractorById = async (req, res) => {
     contractor.status = status;
     contractor.hourly_rate =
       hourly_rate && hourly_rate !== "" ? parseFloat(hourly_rate) : null;
+    contractor.employee_id_field =
+      employee_id_field || contractor.employee_id_field || "four";
 
     contractor.updated_at = new Date(); // Ensure updated_at is set
 
