@@ -42,6 +42,63 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      // Label customization fields
+      label_schedules: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_timesheets: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_employees: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_events: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_locations: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_contractors: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_restrictions: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_classifications: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_reports: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_dashboard: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_sms_info: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_section_scheduling: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_section_analytics: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
+      label_section_admin: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "admin_configs",

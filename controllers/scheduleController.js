@@ -2585,7 +2585,12 @@ const getTimesheetdata = async (req, res) => {
                 {
                   model: Classification,
                   as: "classification",
-                  attributes: ["id", "abbreviation", "description"],
+                  attributes: [
+                    "id",
+                    "abbreviation",
+                    "description",
+                    "order_number",
+                  ],
                 },
                 {
                   model: EventLocationContractor,
@@ -2869,6 +2874,7 @@ const getTimesheetdata = async (req, res) => {
           classification_id: classification.id,
           classification_abbreviation: classification.abbreviation,
           classification_description: classification.description,
+          classification_order: classification.orderNumber ?? null,
           employees: [],
         };
       }
@@ -2911,16 +2917,12 @@ const getTimesheetdata = async (req, res) => {
     Object.values(groupedData).forEach((event) => {
       Object.values(event.locations).forEach((location) => {
         Object.values(location.contractors).forEach((contractor) => {
-          // Convert classifications object to array and sort by abbreviation (A-Z)
+          // Convert classifications object to array and sort by order_number (numerical)
           const classificationsArray = Object.values(contractor.classifications)
             .sort((a, b) => {
-              const abbrevA = (
-                a.classification_abbreviation || ""
-              ).toLowerCase();
-              const abbrevB = (
-                b.classification_abbreviation || ""
-              ).toLowerCase();
-              return abbrevA.localeCompare(abbrevB);
+              const orderA = a.classification_order ?? Infinity;
+              const orderB = b.classification_order ?? Infinity;
+              return orderA - orderB;
             })
             .map((classGroup) => {
               // Sort employees within each classification by last_name (A-Z), then start_time (ascending)
