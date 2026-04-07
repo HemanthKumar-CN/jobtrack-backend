@@ -3423,26 +3423,6 @@ const getEventView = async (req, res) => {
     const { eventDate } = req.params;
     const { tab, search, sort_by, sort_order } = req.query;
 
-    // Build where clause for schedule status filtering
-    const whereClause = {
-      is_deleted: false,
-      [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
-    };
-
-    // Filter by status if tab parameter is provided
-    if (tab && ["pending", "confirmed", "declined"].includes(tab)) {
-      whereClause.status = tab;
-    }
-
-    // Build user where clause for search filtering
-    const userWhereClause = {};
-    if (search) {
-      userWhereClause[Op.or] = [
-        { first_name: { [Op.iLike]: `%${search}%` } },
-        { last_name: { [Op.iLike]: `%${search}%` } },
-      ];
-    }
-
     // Validate sort parameters
     const validSortFields = ["event_name", "location", "contractor"];
     const validSortOrders = ["asc", "desc"];
@@ -3453,9 +3433,100 @@ const getEventView = async (req, res) => {
       ? sort_order
       : "asc";
 
-    // Step 1: Get all schedules for the specified date with all related data
+    // Build user where clause for search filtering
+    const userWhereClause = {};
+    if (search) {
+      userWhereClause[Op.or] = [
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    // Step 1: Get all ContractorClasses for events that are active on this date.
+    // This ensures classifications with 0 schedules still appear in the event view.
+    const contractorClasses = await ContractorClass.findAll({
+      include: [
+        {
+          model: EventLocationContractor,
+          as: "assignment",
+          required: true,
+          attributes: ["id", "steward_id"],
+          include: [
+            {
+              model: EventLocation,
+              required: true,
+              attributes: ["id"],
+              include: [
+                {
+                  model: Event,
+                  required: true,
+                  attributes: [
+                    "id",
+                    "event_name",
+                    "project_code",
+                    "project_comments",
+                    "start_date",
+                    "end_date",
+                  ],
+                  where: {
+                    start_date: { [Op.lte]: eventDate },
+                    end_date: { [Op.gte]: eventDate },
+                  },
+                },
+                {
+                  model: Location,
+                  required: true,
+                  attributes: [
+                    "id",
+                    "name",
+                    "address_1",
+                    "city",
+                    "state",
+                    "colour_code",
+                  ],
+                },
+              ],
+            },
+            {
+              model: Contractor,
+              required: true,
+              attributes: [
+                "id",
+                "first_name",
+                "last_name",
+                "company_name",
+                "email",
+                "status",
+              ],
+            },
+          ],
+        },
+        {
+          model: Classification,
+          as: "classification",
+          required: true,
+          attributes: [
+            "id",
+            "abbreviation",
+            "description",
+            "status",
+            "order_number",
+          ],
+        },
+      ],
+    });
+
+    // Step 2: Get all schedules for this date (with optional tab/search filters)
+    const scheduleWhereClause = {
+      is_deleted: false,
+      [Op.and]: [where(fn("DATE", col("Schedule.start_time")), eventDate)],
+    };
+    if (tab && ["pending", "confirmed", "declined"].includes(tab)) {
+      scheduleWhereClause.status = tab;
+    }
+
     const schedules = await Schedule.findAll({
-      where: whereClause,
+      where: scheduleWhereClause,
       include: [
         {
           model: Employee,
@@ -3469,113 +3540,61 @@ const getEventView = async (req, res) => {
             },
           ],
         },
-        {
-          model: Event,
-          attributes: [
-            "id",
-            "event_name",
-            "project_code",
-            "project_comments",
-            "start_date",
-            "end_date",
-          ],
-        },
-        {
-          model: ContractorClass,
-          attributes: [
-            "id",
-            "class_type",
-            "start_time",
-            "end_time",
-            "need_number",
-          ],
-          include: [
-            {
-              model: Classification,
-              as: "classification",
-              attributes: [
-                "id",
-                "abbreviation",
-                "description",
-                "status",
-                "order_number",
-              ],
-            },
-            {
-              model: EventLocationContractor,
-              as: "assignment",
-              attributes: ["id", "steward_id"],
-              include: [
-                {
-                  model: Contractor,
-                  attributes: [
-                    "id",
-                    "first_name",
-                    "last_name",
-                    "company_name",
-                    "email",
-                    "status",
-                  ],
-                },
-                {
-                  model: EventLocation,
-                  attributes: ["id"],
-                  include: [
-                    {
-                      model: Location,
-                      attributes: [
-                        "id",
-                        "name",
-                        "address_1",
-                        "city",
-                        "state",
-                        "colour_code",
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
       ],
       order: [["start_time", "ASC"]],
     });
 
-    if (schedules.length === 0) {
-      return res.status(200).json({
-        success: true,
-        message: "No schedules found for the specified date",
-        data: [],
-        total_schedules: 0,
-      });
-    }
-
-    // Step 2: Group schedules by Event -> Location -> Contractor -> Classification
-    const groupedData = {};
-
+    // Build a lookup map: contractorClassId -> [employee schedule objects]
+    const schedulesByClassId = {};
     schedules.forEach((schedule) => {
-      const event = schedule.Event;
-      const contractorClass = schedule.ContractorClass;
-      const assignment = contractorClass?.assignment;
-      const contractor = assignment?.Contractor;
-      const eventLocation = assignment?.EventLocation;
-      const location = eventLocation?.Location;
-      const classification = contractorClass?.classification;
+      const ccId = schedule.contractor_class_id;
+      if (!ccId) return;
       const employee = schedule.Employee;
       const user = employee?.User;
+      if (!employee || !user) return;
+      if (!schedulesByClassId[ccId]) {
+        schedulesByClassId[ccId] = [];
+      }
+      schedulesByClassId[ccId].push({
+        schedule_id: schedule.id,
+        employee_id: employee.id,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        snf: employee.snf,
+        type: employee.type,
+        status: schedule.status,
+        start_time: schedule.start_time,
+        comments: schedule.comments,
+        responded_at: schedule.responded_at,
+      });
+    });
+
+    // Step 3: Group ContractorClasses by Event -> Location -> Contractor -> Classification
+    const groupedData = {};
+
+    contractorClasses.forEach((cc) => {
+      const assignment = cc.assignment;
+      const eventLocation = assignment?.EventLocation;
+      const event = eventLocation?.Event;
+      const location = eventLocation?.Location;
+      const contractor = assignment?.Contractor;
+      const classification = cc.classification;
 
       if (
-        !event ||
-        !contractorClass ||
         !assignment ||
-        !contractor ||
+        !eventLocation ||
+        !event ||
         !location ||
-        !classification ||
-        !employee ||
-        !user
+        !contractor ||
+        !classification
       ) {
         return; // Skip incomplete data
+      }
+
+      // If search is active, only include classes that have matching scheduled employees
+      if (search) {
+        const matchingSchedules = schedulesByClassId[cc.id];
+        if (!matchingSchedules || matchingSchedules.length === 0) return;
       }
 
       // Create event group if doesn't exist
@@ -3606,12 +3625,9 @@ const getEventView = async (req, res) => {
       }
 
       // Create contractor group if doesn't exist
-      if (
-        !groupedData[event.id].locations[location.id].contractors[contractor.id]
-      ) {
-        groupedData[event.id].locations[location.id].contractors[
-          contractor.id
-        ] = {
+      const locationGroup = groupedData[event.id].locations[location.id];
+      if (!locationGroup.contractors[contractor.id]) {
+        locationGroup.contractors[contractor.id] = {
           event_location_contractor_id: assignment.id,
           contractor_id: contractor.id,
           contractor_name: `${contractor.first_name} ${contractor.last_name}`,
@@ -3627,71 +3643,48 @@ const getEventView = async (req, res) => {
         };
       }
 
-      const contractorGroup =
-        groupedData[event.id].locations[location.id].contractors[contractor.id];
-      const classType = contractorClass.class_type;
+      const contractorGroup = locationGroup.contractors[contractor.id];
+      const classType = cc.class_type;
 
-      // Create classification group if doesn't exist
+      // Create classification group with its scheduled employees (sorted by last name)
       if (!contractorGroup.class_types[classType][classification.id]) {
+        const employeesForClass = (schedulesByClassId[cc.id] || [])
+          .slice()
+          .sort((a, b) =>
+            (a.last_name || "")
+              .toLowerCase()
+              .localeCompare((b.last_name || "").toLowerCase()),
+          );
+
+        const statusCounts = { pending: 0, confirmed: 0, declined: 0 };
+        employeesForClass.forEach((emp) => {
+          if (statusCounts[emp.status] !== undefined) {
+            statusCounts[emp.status]++;
+          }
+        });
+
         contractorGroup.class_types[classType][classification.id] = {
-          contractor_class_id: contractorClass.id,
+          contractor_class_id: cc.id,
           classification_id: classification.id,
           classification_abbreviation: classification.abbreviation,
           classification_order: classification.order_number || null,
           classification_description: classification.description,
           classification_status: classification.status,
-          start_time: contractorClass.start_time,
-          end_time: contractorClass.end_time,
-          need_number: contractorClass.need_number,
-          schedules: {
-            pending: 0,
-            confirmed: 0,
-            declined: 0,
-          },
-          scheduled_employees: [],
+          start_time: cc.start_time,
+          end_time: cc.end_time,
+          need_number: cc.need_number,
+          schedules: statusCounts,
+          scheduled_employees: employeesForClass,
         };
       }
-
-      const classGroup =
-        contractorGroup.class_types[classType][classification.id];
-
-      // Add schedule count
-      classGroup.schedules[schedule.status]++;
-
-      // Add employee to the scheduled list
-      classGroup.scheduled_employees.push({
-        schedule_id: schedule.id,
-        employee_id: employee.id,
-        first_name: user.first_name,
-        last_name: user.last_name,
-        snf: employee.snf,
-        type: employee.type,
-        status: schedule.status,
-        start_time: schedule.start_time,
-        comments: schedule.comments,
-        responded_at: schedule.responded_at,
-      });
     });
 
-    // Step 3: Transform to flat array structure
+    // Step 4: Transform to flat array structure
     const transformedData = [];
 
     Object.values(groupedData).forEach((event) => {
       Object.values(event.locations).forEach((location) => {
         Object.values(location.contractors).forEach((contractor) => {
-          // Sort scheduled_employees by last name for each classification
-          Object.values(contractor.class_types).forEach((classTypeGroup) => {
-            Object.values(classTypeGroup).forEach((classGroup) => {
-              if (classGroup.scheduled_employees) {
-                classGroup.scheduled_employees.sort((a, b) => {
-                  const lastNameA = (a.last_name || "").toLowerCase();
-                  const lastNameB = (b.last_name || "").toLowerCase();
-                  return lastNameA.localeCompare(lastNameB);
-                });
-              }
-            });
-          });
-
           // Convert class_types object to arrays
           const classTypes = {
             regular: Object.values(contractor.class_types.regular),
@@ -3699,23 +3692,20 @@ const getEventView = async (req, res) => {
             out: Object.values(contractor.class_types.out),
           };
 
-          // Only include if there are any schedules
-          const hasSchedules =
+          // Include all contractor-class combinations (even with 0 schedules)
+          const hasClasses =
             classTypes.regular.length > 0 ||
             classTypes.in.length > 0 ||
             classTypes.out.length > 0;
 
-          if (hasSchedules) {
+          if (hasClasses) {
             transformedData.push({
-              // Event details
               event_id: event.event_id,
               event_name: event.event_name,
               project_code: event.project_code,
               project_comments: event.project_comments,
               event_start_date: event.event_start_date,
               event_end_date: event.event_end_date,
-
-              // Location details
               event_location_id: location.event_location_id,
               location_id: location.location_id,
               location_name: location.location_name,
@@ -3723,8 +3713,6 @@ const getEventView = async (req, res) => {
               location_city: location.location_city,
               location_state: location.location_state,
               colour_code: location.colour_code,
-
-              // Contractor details
               event_location_contractor_id:
                 contractor.event_location_contractor_id,
               contractor_id: contractor.contractor_id,
@@ -3733,8 +3721,6 @@ const getEventView = async (req, res) => {
               contractor_email: contractor.contractor_email,
               contractor_status: contractor.contractor_status,
               steward_id: contractor.steward_id,
-
-              // Classes with individual schedules
               class_types: classTypes,
             });
           }
@@ -3742,15 +3728,11 @@ const getEventView = async (req, res) => {
       });
     });
 
-    // Step 4: Apply sorting to transformed data
+    // Step 5: Apply sorting to transformed data
     transformedData.sort((a, b) => {
       let compareA, compareB;
 
       switch (sortField) {
-        case "event_name":
-          compareA = a.event_name?.toLowerCase() || "";
-          compareB = b.event_name?.toLowerCase() || "";
-          break;
         case "location":
           compareA = a.location_name?.toLowerCase() || "";
           compareB = b.location_name?.toLowerCase() || "";
@@ -3759,24 +3741,27 @@ const getEventView = async (req, res) => {
           compareA = a.contractor_company?.toLowerCase() || "";
           compareB = b.contractor_company?.toLowerCase() || "";
           break;
-        default:
+        default: // event_name
           compareA = a.event_name?.toLowerCase() || "";
           compareB = b.event_name?.toLowerCase() || "";
       }
 
-      if (sortDirection === "asc") {
-        return compareA.localeCompare(compareB);
-      } else {
-        return compareB.localeCompare(compareA);
-      }
+      return sortDirection === "asc"
+        ? compareA.localeCompare(compareB)
+        : compareB.localeCompare(compareA);
     });
+
+    const totalSchedules = Object.values(schedulesByClassId).reduce(
+      (sum, arr) => sum + arr.length,
+      0,
+    );
 
     res.status(200).json({
       success: true,
       message: "Event view data retrieved successfully",
       data: transformedData,
       total_items: transformedData.length,
-      total_schedules: schedules.length,
+      total_schedules: totalSchedules,
       sort_by: sortField,
       sort_order: sortDirection,
     });
