@@ -708,7 +708,7 @@ const getSchedules = async (req, res) => {
     }
 
     if (type) {
-      whereClause["$ContractorClass.class_type$"] = type;
+      whereClause["$Employee.type$"] = type;
     }
 
     const userWhereClause = {};
