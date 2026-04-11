@@ -118,69 +118,66 @@ exports.getEmployeeTimesheets = async (req, res) => {
       `Fetching timesheets for employee ID: ${employee_id} from ${start_date} to ${end_date}`,
     );
 
-    // Fetch timesheets for the specific employee within the date range
-    const timesheets = await Timesheet.findAll({
+    // Fetch confirmed schedules for the employee, left-joining Timesheet so
+    // rows without a completed timesheet are still included
+    const confirmedSchedules = await Schedule.findAll({
       where: {
-        status: "complete", // Only fetch completed timesheets
+        is_deleted: false,
+        employee_id: employee_id,
+        status: "confirmed",
+        start_time: {
+          [Op.gte]: startDate,
+          [Op.lte]: endDate,
+        },
       },
       include: [
         {
-          model: Schedule,
-          as: "schedule",
-          where: {
-            is_deleted: false,
-            employee_id: employee_id,
-            start_time: {
-              [Op.gte]: startDate,
-              [Op.lte]: endDate,
-            },
-          },
-          attributes: ["id", "start_time"],
+          model: Timesheet,
+          as: "timesheet",
+          required: false,
+        },
+        {
+          model: Event,
+          attributes: ["event_name"],
+        },
+        {
+          model: ContractorClass,
+          attributes: ["id"],
           include: [
             {
-              model: Event,
-              attributes: ["event_name"],
+              model: Classification,
+              as: "classification",
+              attributes: ["abbreviation"],
             },
             {
-              model: ContractorClass,
+              model: EventLocationContractor,
+              as: "assignment",
               attributes: ["id"],
               include: [
                 {
-                  model: Classification,
-                  as: "classification",
-                  attributes: ["abbreviation"],
-                },
-                {
-                  model: EventLocationContractor,
-                  as: "assignment",
+                  model: EventLocation,
                   attributes: ["id"],
                   include: [
                     {
-                      model: EventLocation,
-                      attributes: ["id"],
-                      include: [
-                        {
-                          model: Location,
-                          attributes: ["name"],
-                        },
-                      ],
-                    },
-                    {
-                      model: Contractor,
-                      attributes: ["company_name"],
+                      model: Location,
+                      attributes: ["name"],
                     },
                   ],
+                },
+                {
+                  model: Contractor,
+                  attributes: ["company_name"],
                 },
               ],
             },
           ],
         },
       ],
-      attributes: ["id", "st", "ot", "dt"],
-      order: [[{ model: Schedule, as: "schedule" }, "start_time", "ASC"]],
+      attributes: ["id", "start_time"],
+      order: [["start_time", "ASC"]],
     });
 
-    console.log("Fetched Timesheets:", timesheets.length);
+    console.log("Fetched Confirmed Schedules:", confirmedSchedules.length);
 
     // Fetch timesheet_amount from admin_configs
     let timesheetAmount = 0.5; // Default value
@@ -196,23 +193,21 @@ exports.getEmployeeTimesheets = async (req, res) => {
 
     console.log("Timesheet Amount from Admin Config:", timesheetAmount);
 
-    if (timesheets.length === 0) {
+    if (confirmedSchedules.length === 0) {
       return res.status(200).json({
         success: true,
         message:
-          "No timesheet data found for the specified employee and date range",
+          "No confirmed schedule data found for the specified employee and date range",
         data: [],
         total_records: 0,
         timesheet_amount: timesheetAmount,
       });
     }
 
-    // Transform to simplified structure
-    const transformedData = timesheets
-      .map((timesheet) => {
-        const schedule = timesheet.schedule;
+    // Transform to simplified structure; timesheet may be null if not yet submitted
+    const transformedData = confirmedSchedules
+      .map((schedule) => {
         if (
-          !schedule ||
           !schedule.Event ||
           !schedule.ContractorClass ||
           !schedule.ContractorClass.classification ||
@@ -222,14 +217,15 @@ exports.getEmployeeTimesheets = async (req, res) => {
           !schedule.ContractorClass.assignment.Contractor
         ) {
           console.warn(
-            `Skipping timesheet ${timesheet.id} - Missing required relations`,
+            `Skipping schedule ${schedule.id} - Missing required relations`,
           );
           return null;
         }
 
-        const st = timesheet.st || 0;
-        const ot = timesheet.ot || 0;
-        const dt = timesheet.dt || 0;
+        const timesheet = schedule.timesheet;
+        const st = timesheet?.st || 0;
+        const ot = timesheet?.ot || 0;
+        const dt = timesheet?.dt || 0;
         const totalHours = st + ot + dt;
 
         return {
