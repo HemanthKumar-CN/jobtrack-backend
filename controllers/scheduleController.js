@@ -2869,14 +2869,14 @@ const getTimesheetdata = async (req, res) => {
         groupedData[event.id].locations[location.id].contractors[contractor.id];
 
       // Create classification group if doesn't exist - group by classification_id AND class_type
-      const classGroupKey = `${classification.id}-${contractorClass.class_type || 'regular'}`;
+      const classGroupKey = `${classification.id}-${contractorClass.class_type || "regular"}`;
       if (!contractorGroup.classifications[classGroupKey]) {
         contractorGroup.classifications[classGroupKey] = {
           classification_id: classification.id,
           classification_abbreviation: classification.abbreviation,
           classification_description: classification.description,
           classification_order: classification.orderNumber ?? null,
-          class_type: contractorClass.class_type || 'regular',
+          class_type: contractorClass.class_type || "regular",
           employees: [],
         };
       }
@@ -2947,6 +2947,7 @@ const getTimesheetdata = async (req, res) => {
                   classGroup.classification_abbreviation,
                 classification_description:
                   classGroup.classification_description,
+                class_type: classGroup.class_type,
                 employees: sortedEmployees,
                 open_count: sortedEmployees.filter(
                   (emp) => emp.timesheet.status === "open",
