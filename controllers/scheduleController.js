@@ -1584,15 +1584,19 @@ const updateSchedule = async (req, res) => {
         console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
       } else {
         timesheetAction = "exists";
-        console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+        console.log(
+          `⚠️ Timesheet already exists for schedule ID: ${schedule.id}`,
+        );
       }
-    } 
+    }
     // If schedule is pending or declined, delete timesheet if it exists
     else if (schedule.status === "pending" || schedule.status === "declined") {
       if (existingTimesheet) {
         await existingTimesheet.destroy();
         timesheetAction = "deleted";
-        console.log(`🗑️ Timesheet deleted for schedule ID: ${schedule.id} (status: ${schedule.status})`);
+        console.log(
+          `🗑️ Timesheet deleted for schedule ID: ${schedule.id} (status: ${schedule.status})`,
+        );
       }
     }
 
@@ -3948,7 +3952,9 @@ const confirmSchedule = async (req, res) => {
       });
       console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
     } else {
-      console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+      console.log(
+        `⚠️ Timesheet already exists for schedule ID: ${schedule.id}`,
+      );
     }
 
     return res.status(200).json({
