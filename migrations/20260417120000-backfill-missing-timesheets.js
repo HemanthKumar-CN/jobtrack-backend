@@ -6,7 +6,7 @@ module.exports = {
     // Find all confirmed schedules that don't have a timesheet record
     const [confirmedSchedulesWithoutTimesheets] = await queryInterface.sequelize
       .query(`
-      SELECT s.id as schedule_id, s.start_time
+      SELECT s.id as schedule_id
       FROM schedules s
       LEFT JOIN timesheets t ON s.id = t.schedule_id
       WHERE s.status = 'confirmed'
@@ -27,7 +27,6 @@ module.exports = {
     const timesheetRecords = confirmedSchedulesWithoutTimesheets.map(
       (schedule) => ({
         schedule_id: schedule.schedule_id,
-        start_time: schedule.start_time,
         status: "open",
         st: 0,
         ot: 0,

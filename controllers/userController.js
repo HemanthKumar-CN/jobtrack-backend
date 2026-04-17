@@ -301,16 +301,17 @@ exports.scheduleRespond = async (req, res) => {
       if (!existingTimesheet) {
         await Timesheet.create({
           schedule_id: schedule.id,
-          start_time: schedule.start_time,
           status: "open",
         });
         timesheetAction = "created";
         console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
       } else {
         timesheetAction = "exists";
-        console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+        console.log(
+          `⚠️ Timesheet already exists for schedule ID: ${schedule.id}`,
+        );
       }
-    } 
+    }
     // If status is declined, delete timesheet if it exists
     else if (status === "declined") {
       const existingTimesheet = await Timesheet.findOne({
@@ -320,7 +321,9 @@ exports.scheduleRespond = async (req, res) => {
       if (existingTimesheet) {
         await existingTimesheet.destroy();
         timesheetAction = "deleted";
-        console.log(`🗑️ Timesheet deleted for schedule ID: ${schedule.id} (declined)`);
+        console.log(
+          `🗑️ Timesheet deleted for schedule ID: ${schedule.id} (declined)`,
+        );
       }
     }
 
