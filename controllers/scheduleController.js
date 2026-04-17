@@ -1565,23 +1565,41 @@ const updateSchedule = async (req, res) => {
     }
     await schedule.update(updatePayload);
 
-    // When schedule is updated and status is set to "pending",
-    // delete any existing timesheet record
+    // Handle timesheet based on schedule status changes
     const existingTimesheet = await Timesheet.findOne({
       where: { schedule_id: schedule.id },
     });
 
-    if (existingTimesheet) {
-      await existingTimesheet.destroy();
-      console.log(
-        `Timesheet deleted for schedule ID: ${schedule.id} due to schedule update`,
-      );
+    let timesheetAction = null;
+
+    // If schedule is now confirmed, create timesheet if it doesn't exist
+    if (schedule.status === "confirmed") {
+      if (!existingTimesheet) {
+        await Timesheet.create({
+          schedule_id: schedule.id,
+          start_time: schedule.start_time,
+          status: "open",
+        });
+        timesheetAction = "created";
+        console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
+      } else {
+        timesheetAction = "exists";
+        console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+      }
+    } 
+    // If schedule is pending or declined, delete timesheet if it exists
+    else if (schedule.status === "pending" || schedule.status === "declined") {
+      if (existingTimesheet) {
+        await existingTimesheet.destroy();
+        timesheetAction = "deleted";
+        console.log(`🗑️ Timesheet deleted for schedule ID: ${schedule.id} (status: ${schedule.status})`);
+      }
     }
 
     return res.status(200).json({
       message: "Schedule updated successfully",
       data: schedule,
-      timesheet_deleted: !!existingTimesheet,
+      timesheet_action: timesheetAction,
     });
   } catch (error) {
     console.error("❌ Error updating schedule:", error);
@@ -3917,6 +3935,22 @@ const confirmSchedule = async (req, res) => {
       responded_at: new Date(),
     });
 
+    // Create timesheet if it doesn't exist
+    const existingTimesheet = await Timesheet.findOne({
+      where: { schedule_id: schedule.id },
+    });
+
+    if (!existingTimesheet) {
+      await Timesheet.create({
+        schedule_id: schedule.id,
+        start_time: schedule.start_time,
+        status: "open",
+      });
+      console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
+    } else {
+      console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+    }
+
     return res.status(200).json({
       message: "Schedule confirmed successfully",
       schedule: {
@@ -3924,6 +3958,7 @@ const confirmSchedule = async (req, res) => {
         status: schedule.status,
         responded_at: schedule.responded_at,
       },
+      timesheet_created: !existingTimesheet,
     });
   } catch (error) {
     console.error(error);

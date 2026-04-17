@@ -289,6 +289,8 @@ exports.scheduleRespond = async (req, res) => {
     schedule.responded_at = new Date();
     await schedule.save();
 
+    let timesheetAction = null;
+
     // If status is confirmed, create a timesheet record
     if (status === "confirmed") {
       // Check if timesheet already exists to avoid duplicates
@@ -299,24 +301,33 @@ exports.scheduleRespond = async (req, res) => {
       if (!existingTimesheet) {
         await Timesheet.create({
           schedule_id: schedule.id,
+          start_time: schedule.start_time,
           status: "open",
-          // Other fields will use their default values
-          // actual_start: null (default)
-          // st: 0.00 (default)
-          // ot: 0.00 (default)
-          // dt: 0.00 (default)
         });
-
-        console.log(`Timesheet created for schedule ID: ${schedule.id}`);
+        timesheetAction = "created";
+        console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
       } else {
-        console.log(`Timesheet already exists for schedule ID: ${schedule.id}`);
+        timesheetAction = "exists";
+        console.log(`⚠️ Timesheet already exists for schedule ID: ${schedule.id}`);
+      }
+    } 
+    // If status is declined, delete timesheet if it exists
+    else if (status === "declined") {
+      const existingTimesheet = await Timesheet.findOne({
+        where: { schedule_id: schedule.id },
+      });
+
+      if (existingTimesheet) {
+        await existingTimesheet.destroy();
+        timesheetAction = "deleted";
+        console.log(`🗑️ Timesheet deleted for schedule ID: ${schedule.id} (declined)`);
       }
     }
 
     return res.status(200).json({
       message: "Response updated",
       status: schedule.status,
-      timesheet_created: status === "confirmed",
+      timesheet_action: timesheetAction,
     });
   } catch (err) {
     console.error("Error updating schedule response:", err);
