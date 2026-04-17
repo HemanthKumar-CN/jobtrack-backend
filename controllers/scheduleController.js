@@ -1577,7 +1577,6 @@ const updateSchedule = async (req, res) => {
       if (!existingTimesheet) {
         await Timesheet.create({
           schedule_id: schedule.id,
-          start_time: schedule.start_time,
           status: "open",
         });
         timesheetAction = "created";
@@ -3947,7 +3946,6 @@ const confirmSchedule = async (req, res) => {
     if (!existingTimesheet) {
       await Timesheet.create({
         schedule_id: schedule.id,
-        start_time: schedule.start_time,
         status: "open",
       });
       console.log(`✅ Timesheet created for schedule ID: ${schedule.id}`);
