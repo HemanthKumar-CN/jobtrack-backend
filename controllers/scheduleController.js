@@ -4126,7 +4126,29 @@ const getAllEmployees = async (req, res) => {
       order: [["snf", "ASC"]],
     });
 
-    // Step 3: Format scheduled employees
+    // Step 3: Get employee reviews for this date
+    const allEmployeeIds = [
+      ...scheduledEmployees.map((s) => s.employee_id),
+      ...notScheduledEmployees.map((e) => e.id),
+    ];
+
+    const employeeReviews = await EmployeeReview.findAll({
+      where: {
+        employee_id: {
+          [Op.in]: allEmployeeIds,
+        },
+        review_date: date,
+      },
+      attributes: ["employee_id", "comments"],
+    });
+
+    // Create a map of employee_id to review comments
+    const reviewCommentsMap = {};
+    employeeReviews.forEach((review) => {
+      reviewCommentsMap[review.employee_id] = review.comments;
+    });
+
+    // Step 4: Format scheduled employees
     const formattedScheduled = scheduledEmployees.map((schedule) => {
       const startTime = schedule.start_time
         ? moment(schedule.start_time).format("hh:mm A")
@@ -4168,12 +4190,13 @@ const getAllEmployees = async (req, res) => {
           class_type: schedule.ContractorClass?.class_type,
         },
         start_time: startTime,
-        comments: schedule.comments,
+        // Prioritize review comments over schedule comments
+        comments: reviewCommentsMap[schedule.Employee?.id] || schedule.comments,
         isScheduled: true,
       };
     });
 
-    // Step 4: Format not scheduled employees
+    // Step 5: Format not scheduled employees
     const formattedNotScheduled = notScheduledEmployees.map((employee) => ({
       id: null,
       employee_id: employee.id,
@@ -4187,11 +4210,12 @@ const getAllEmployees = async (req, res) => {
       location_contractor: null,
       class: null,
       start_time: null,
-      comments: null,
+      // Include review comments for not scheduled employees too
+      comments: reviewCommentsMap[employee.id] || null,
       isScheduled: false,
     }));
 
-    // Step 5: Combine and filter by status if "Not Scheduled" is selected
+    // Step 6: Combine and filter by status if "Not Scheduled" is selected
     let allEmployees = [];
 
     if (status === "not-scheduled") {
