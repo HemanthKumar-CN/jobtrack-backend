@@ -4053,8 +4053,11 @@ const getAllEmployees = async (req, res) => {
         },
         {
           model: EventLocationContractor,
-          attributes: ["id", "name"],
           include: [
+            {
+              model: Contractor,
+              attributes: ["first_name", "last_name", "company_name"],
+            },
             {
               model: EventLocation,
               include: [
@@ -4129,6 +4132,18 @@ const getAllEmployees = async (req, res) => {
         ? moment(schedule.start_time).format("hh:mm A")
         : null;
 
+      // Build location_contractor name as "Location | Contractor"
+      const locationName =
+        schedule.EventLocationContractor?.EventLocation?.Location?.name || "";
+      const contractor = schedule.EventLocationContractor?.Contractor;
+      const contractorName =
+        contractor?.company_name ||
+        `${contractor?.first_name || ""} ${contractor?.last_name || ""}`.trim();
+      const locationContractorName =
+        locationName && contractorName
+          ? `${locationName} | ${contractorName}`
+          : locationName || contractorName || "";
+
       return {
         id: schedule.id,
         employee_id: schedule.Employee?.id,
@@ -4144,7 +4159,7 @@ const getAllEmployees = async (req, res) => {
         },
         location_contractor: {
           id: schedule.EventLocationContractor?.id,
-          name: schedule.EventLocationContractor?.name,
+          name: locationContractorName,
         },
         class: {
           id: schedule.ContractorClass?.classification?.id,
