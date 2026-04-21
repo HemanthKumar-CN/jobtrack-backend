@@ -27,10 +27,12 @@ const {
   getEventView,
   resendScheduleNotification,
   confirmSchedule,
+  getAllEmployees,
 } = require("../controllers/scheduleController");
 
 router.post("/", createBulkSchedule);
 router.get("/allSchedules/:date", getSchedules);
+router.get("/allEmployees/:date", getAllEmployees);
 router.get("/eventList/event-location-contractors/:date", eventList);
 router.post("/previous-assignments", getLatestConfirmedAssignments);
 router.get("/monthlySchedule/:month", getMonthlySchedules);
