@@ -3970,6 +3970,277 @@ const confirmSchedule = async (req, res) => {
   }
 };
 
+// Get All Employees (Scheduled + Not Scheduled) for a specific date
+const getAllEmployees = async (req, res) => {
+  try {
+    const {
+      status,
+      task_event_id,
+      location_id,
+      search,
+      capacity,
+      classification_id,
+      contractor,
+      type,
+    } = req.query;
+    const date = req.params.date;
+
+    const inputDate = moment(date, "YYYY-MM-DD");
+    const dayLetterMap = {
+      0: "Su",
+      1: "M",
+      2: "T",
+      3: "W",
+      4: "Th",
+      5: "F",
+      6: "Sa",
+    };
+    const dayLetter = dayLetterMap[inputDate.day()];
+
+    // Step 1: Get all scheduled employees for this date
+    const whereClause = {
+      is_deleted: false,
+      [Op.and]: [where(fn("DATE", col("Schedule.start_time")), date)],
+    };
+
+    // Apply filters for scheduled employees
+    if (status && ["pending", "confirmed", "declined"].includes(status)) {
+      whereClause.status = status;
+    }
+    if (task_event_id) {
+      whereClause.task_event_id = task_event_id;
+    }
+    if (location_id) {
+      whereClause["$EventLocationContractor.EventLocation.location_id$"] =
+        location_id;
+    }
+    if (classification_id) {
+      whereClause["$ContractorClass.classification_id$"] = classification_id;
+    }
+    if (contractor) {
+      whereClause["$EventLocationContractor.contractor_id$"] = contractor;
+    }
+    if (type) {
+      whereClause["$Employee.type$"] = type;
+    }
+
+    const userWhereClause = {};
+    if (search) {
+      userWhereClause[Op.or] = [
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const scheduledEmployees = await Schedule.findAll({
+      where: whereClause,
+      include: [
+        {
+          model: Employee,
+          attributes: ["id", "phone", "snf", "type"],
+          required: !!search,
+          include: [
+            {
+              model: User,
+              attributes: ["first_name", "last_name"],
+              ...(search && { where: userWhereClause, required: true }),
+            },
+          ],
+        },
+        {
+          model: Event,
+          attributes: ["id", "event_name"],
+        },
+        {
+          model: EventLocationContractor,
+          include: [
+            {
+              model: Contractor,
+              attributes: ["first_name", "last_name", "company_name"],
+            },
+            {
+              model: EventLocation,
+              include: [
+                {
+                  model: Location,
+                  attributes: ["id", "name"],
+                },
+              ],
+            },
+          ],
+        },
+        {
+          model: ContractorClass,
+          as: "ContractorClass",
+          include: [
+            {
+              model: Classification,
+              as: "classification",
+              attributes: ["id", "abbreviation", "description"],
+            },
+          ],
+        },
+      ],
+      order: [[Employee, "snf", "ASC"]],
+    });
+
+    // Get scheduled employee IDs
+    const scheduledEmployeeIds = scheduledEmployees.map(
+      (schedule) => schedule.employee_id,
+    );
+
+    // Step 2: Get not scheduled employees
+    const notScheduledWhere = {
+      status: "active",
+      id: {
+        [Op.notIn]: scheduledEmployeeIds,
+      },
+    };
+
+    // Apply type filter for not scheduled employees
+    if (type) {
+      notScheduledWhere.type = type;
+    }
+
+    const notScheduledUserWhere = {
+      deleted_at: null,
+    };
+    if (search) {
+      notScheduledUserWhere[Op.or] = [
+        { first_name: { [Op.iLike]: `%${search}%` } },
+        { last_name: { [Op.iLike]: `%${search}%` } },
+      ];
+    }
+
+    const notScheduledEmployees = await Employee.findAll({
+      where: notScheduledWhere,
+      attributes: ["id", "user_id", "phone", "type", "snf"],
+      include: [
+        {
+          model: User,
+          attributes: ["first_name", "last_name"],
+          where: notScheduledUserWhere,
+          required: true,
+        },
+      ],
+      order: [["snf", "ASC"]],
+    });
+
+    // Step 3: Format scheduled employees
+    const formattedScheduled = scheduledEmployees.map((schedule) => {
+      const startTime = schedule.start_time
+        ? moment(schedule.start_time).format("hh:mm A")
+        : null;
+
+      // Build location_contractor name as "Location | Contractor"
+      const locationName =
+        schedule.EventLocationContractor?.EventLocation?.Location?.name || "";
+      const contractor = schedule.EventLocationContractor?.Contractor;
+      const contractorName =
+        contractor?.company_name ||
+        `${contractor?.first_name || ""} ${contractor?.last_name || ""}`.trim();
+      const locationContractorName =
+        locationName && contractorName
+          ? `${locationName} | ${contractorName}`
+          : locationName || contractorName || "";
+
+      return {
+        id: schedule.id,
+        employee_id: schedule.Employee?.id,
+        snf: schedule.Employee?.snf,
+        first_name: schedule.Employee?.User?.first_name,
+        last_name: schedule.Employee?.User?.last_name,
+        phone: schedule.Employee?.phone,
+        type: schedule.Employee?.type,
+        status: schedule.status,
+        event: {
+          id: schedule.Event?.id,
+          eventName: schedule.Event?.event_name,
+        },
+        location_contractor: {
+          id: schedule.EventLocationContractor?.id,
+          name: locationContractorName,
+        },
+        class: {
+          id: schedule.ContractorClass?.classification?.id,
+          abbreviation: schedule.ContractorClass?.classification?.abbreviation,
+          description: schedule.ContractorClass?.classification?.description,
+          class_type: schedule.ContractorClass?.class_type,
+        },
+        start_time: startTime,
+        comments: schedule.comments,
+        isScheduled: true,
+      };
+    });
+
+    // Step 4: Format not scheduled employees
+    const formattedNotScheduled = notScheduledEmployees.map((employee) => ({
+      id: null,
+      employee_id: employee.id,
+      snf: employee.snf,
+      first_name: employee.User?.first_name,
+      last_name: employee.User?.last_name,
+      phone: employee.phone,
+      type: employee.type,
+      status: null,
+      event: null,
+      location_contractor: null,
+      class: null,
+      start_time: null,
+      comments: null,
+      isScheduled: false,
+    }));
+
+    // Step 5: Combine and filter by status if "Not Scheduled" is selected
+    let allEmployees = [];
+
+    if (status === "not-scheduled") {
+      // Show only not scheduled employees
+      allEmployees = formattedNotScheduled;
+    } else if (status) {
+      // Show only scheduled employees with specific status
+      allEmployees = formattedScheduled;
+    } else {
+      // Show all employees (scheduled + not scheduled)
+      allEmployees = [...formattedScheduled, ...formattedNotScheduled];
+    }
+
+    // Sort by SNF
+    allEmployees.sort((a, b) => {
+      const snfA = parseInt(a.snf) || 0;
+      const snfB = parseInt(b.snf) || 0;
+      return snfA - snfB;
+    });
+
+    // Step 6: Calculate counts
+    const total = allEmployees.length;
+    const confirmed = scheduledEmployees.filter(
+      (s) => s.status === "confirmed",
+    ).length;
+    const pending = scheduledEmployees.filter(
+      (s) => s.status === "pending",
+    ).length;
+    const declined = scheduledEmployees.filter(
+      (s) => s.status === "declined",
+    ).length;
+    const notScheduledCount = formattedNotScheduled.length;
+
+    res.status(200).json({
+      data: allEmployees,
+      counts: {
+        total,
+        confirmed,
+        pending,
+        declined,
+        notScheduled: notScheduledCount,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching all employees:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 module.exports = {
   createSchedule,
   createBulkSchedule,
@@ -3997,4 +4268,5 @@ module.exports = {
   getEventView,
   resendScheduleNotification,
   confirmSchedule,
+  getAllEmployees,
 };
