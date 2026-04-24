@@ -4,7 +4,12 @@ const bcrypt = require("bcrypt");
 /** @type {import('sequelize-cli').Migration} */
 module.exports = {
   async up(queryInterface, Sequelize) {
-    // 1. Insert SUPER_ADMIN role — skip if already exists (idempotent)
+    // 1. Reset roles sequence to avoid conflicts from previous failed attempts
+    await queryInterface.sequelize.query(`
+      SELECT setval(pg_get_serial_sequence('roles', 'id'), MAX(id)) FROM roles;
+    `);
+
+    // 2. Insert SUPER_ADMIN role — skip if already exists (idempotent)
     await queryInterface.sequelize.query(`
       INSERT INTO roles (name, created_at, updated_at)
       VALUES ('SUPER_ADMIN', NOW(), NOW())
@@ -16,7 +21,12 @@ module.exports = {
       `SELECT id FROM roles WHERE name = 'SUPER_ADMIN';`,
     );
 
-    // 3. Create the super admin user — skip if already exists (idempotent)
+    // 3. Reset users sequence too (same reason)
+    await queryInterface.sequelize.query(`
+      SELECT setval(pg_get_serial_sequence('users', 'id'), MAX(id)) FROM users;
+    `);
+
+    // 4. Create the super admin user — skip if already exists (idempotent)
     const hashedPassword = await bcrypt.hash("SuperAdmin@2026", 10);
     await queryInterface.sequelize.query(
       `
