@@ -39,9 +39,11 @@ const reportRoutes = require("./routes/reportRoutes");
 const restrictionRoutes = require("./routes/restrictionRoutes");
 const classificationRoutes = require("./routes/classificationRoutes");
 const adminConfigRoutes = require("./routes/adminConfigRoutes");
+const superAdminRoutes = require("./routes/superAdminRoutes");
 
 const sequelize = require("./config/database");
 const { authenticateUser } = require("./utils/authenticateUser");
+const { checkOrgStatus } = require("./utils/checkOrgStatus");
 
 app.get("/", (req, res) => {
   res.send("✅ Backend API Running!");
@@ -144,16 +146,37 @@ app.post("/api/email/reply", async (req, res) => {
 });
 
 app.use("/api/users", userRoutes);
-app.use(authenticateUser, require("./routes/locationRoutes"));
-app.use("/api/employees", authenticateUser, employeeRoutes);
-app.use("/api/employee-reviews", authenticateUser, employeeReviewRoutes);
-app.use("/api/schedules", authenticateUser, scheduleRoutes);
-app.use("/api/contractors", authenticateUser, contractorRoutes);
-app.use("/api/events", authenticateUser, eventRoutes);
-app.use("/api/reports", authenticateUser, reportRoutes);
-app.use("/api/restrictions", authenticateUser, restrictionRoutes);
-app.use("/api/classifications", authenticateUser, classificationRoutes);
-app.use("/api/admin-configs", authenticateUser, adminConfigRoutes);
+app.use("/api/super-admin", superAdminRoutes);
+app.use(authenticateUser, checkOrgStatus, require("./routes/locationRoutes"));
+app.use("/api/employees", authenticateUser, checkOrgStatus, employeeRoutes);
+app.use(
+  "/api/employee-reviews",
+  authenticateUser,
+  checkOrgStatus,
+  employeeReviewRoutes,
+);
+app.use("/api/schedules", authenticateUser, checkOrgStatus, scheduleRoutes);
+app.use("/api/contractors", authenticateUser, checkOrgStatus, contractorRoutes);
+app.use("/api/events", authenticateUser, checkOrgStatus, eventRoutes);
+app.use("/api/reports", authenticateUser, checkOrgStatus, reportRoutes);
+app.use(
+  "/api/restrictions",
+  authenticateUser,
+  checkOrgStatus,
+  restrictionRoutes,
+);
+app.use(
+  "/api/classifications",
+  authenticateUser,
+  checkOrgStatus,
+  classificationRoutes,
+);
+app.use(
+  "/api/admin-configs",
+  authenticateUser,
+  checkOrgStatus,
+  adminConfigRoutes,
+);
 
 // Dummy function to update employee status in DB
 async function updateEmployeeAvailability(phoneNumber, isAvailable) {

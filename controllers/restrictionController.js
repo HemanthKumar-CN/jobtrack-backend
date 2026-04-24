@@ -40,6 +40,17 @@ const getAllRestrictions = async (req, res) => {
       where.type = type;
     }
 
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      where.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      where.organization_id = null;
+    }
+
     // ✅ Safe sortField check (prevent SQL injection)
     const validFields = [
       "id",
@@ -76,7 +87,11 @@ const bulkCreate = async (req, res) => {
   }
 
   try {
-    const newRestrictions = await Restriction.bulkCreate(restrictions);
+    const restrictionsWithOrg = restrictions.map((r) => ({
+      ...r,
+      organization_id: req.user?.organizationId ?? null,
+    }));
+    const newRestrictions = await Restriction.bulkCreate(restrictionsWithOrg);
     return res
       .status(201)
       .json({ message: "Created successfully", restrictions: newRestrictions });

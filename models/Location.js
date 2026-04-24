@@ -33,6 +33,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "active",
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "locations",
@@ -46,6 +54,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "location_id",
       as: "eventLocations",
     });
+    Location.belongsTo(models.Organization, { foreignKey: "organization_id" });
   };
 
   return Location;

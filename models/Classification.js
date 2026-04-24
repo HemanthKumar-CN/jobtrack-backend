@@ -23,6 +23,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         unique: true,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "classifications",
@@ -35,6 +43,9 @@ module.exports = (sequelize, DataTypes) => {
     Classification.hasMany(models.ContractorClass, {
       foreignKey: "classification_id",
       as: "classes",
+    });
+    Classification.belongsTo(models.Organization, {
+      foreignKey: "organization_id",
     });
   };
 

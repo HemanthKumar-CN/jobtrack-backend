@@ -145,6 +145,14 @@ module.exports = (sequelize, DataTypes) => {
       email_opt_out_date: {
         type: DataTypes.DATEONLY,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "employees",
@@ -155,6 +163,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Employee.associate = (models) => {
     Employee.belongsTo(models.User, { foreignKey: "user_id" });
+    Employee.belongsTo(models.Organization, { foreignKey: "organization_id" });
 
     Employee.belongsToMany(models.Restriction, {
       through: models.EmployeeRestriction,

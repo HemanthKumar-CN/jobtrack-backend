@@ -135,6 +135,7 @@ const createEvent = async (req, res) => {
         event_type,
         status,
         auto_confirm_schedule,
+        organization_id: req.user?.organizationId ?? null,
       },
       { transaction: t },
     );
@@ -246,6 +247,17 @@ const getAllEvents = async (req, res) => {
 
     // Only get active events
     whereCondition.status = "active";
+
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereCondition.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereCondition.organization_id = null;
+    }
 
     if (eventFilter) {
       whereCondition.id = eventFilter;

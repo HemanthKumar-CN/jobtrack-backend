@@ -168,6 +168,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
         unique: true,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "schedules",
@@ -189,6 +197,7 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "schedule_id",
       as: "timesheet",
     });
+    Schedule.belongsTo(models.Organization, { foreignKey: "organization_id" });
   };
 
   return Schedule;

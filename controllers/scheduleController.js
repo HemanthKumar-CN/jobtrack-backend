@@ -54,6 +54,7 @@ const createSchedule = async (req, res) => {
       employee_id,
       location_id,
       shift_date,
+      organization_id: req.user?.organizationId ?? null,
     });
 
     res.status(201).json(schedule);
@@ -512,6 +513,7 @@ const createBulkSchedule = async (req, res) => {
         status: scheduleStatus,
         response_token: responseToken,
         responded_at: event?.auto_confirm_schedule ? new Date() : null,
+        organization_id: req.user?.organizationId ?? null,
       });
 
       // Only send SMS if auto_confirm_schedule is false
@@ -709,6 +711,17 @@ const getSchedules = async (req, res) => {
 
     if (type) {
       whereClause["$Employee.type$"] = type;
+    }
+
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
     }
 
     const userWhereClause = {};
@@ -991,8 +1004,19 @@ const getWeeklySchedules = async (req, res) => {
     );
 
     // Fetch schedules that overlap this week
+    const orgWhere = {};
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      orgWhere.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      orgWhere.organization_id = null;
+    }
     const schedules = await Schedule.findAll({
       where: {
+        ...orgWhere,
         [Op.and]: [
           { start_date: { [Op.lte]: currentWeekEnd } }, // Starts before or during the week
           { end_date: { [Op.gte]: currentWeekStart } }, // Ends after or during the week
@@ -1097,8 +1121,19 @@ const getMonthlySchedules = async (req, res) => {
     console.log("Fetching schedules from:", startOfMonth, "to", endOfMonth);
 
     // Fetch schedules that overlap the given month
+    const orgWhere2 = {};
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      orgWhere2.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      orgWhere2.organization_id = null;
+    }
     const schedules = await Schedule.findAll({
       where: {
+        ...orgWhere2,
         [Op.and]: [
           { start_date: { [Op.lte]: endOfMonth } },
           { end_date: { [Op.gte]: startOfMonth } },
@@ -1766,6 +1801,17 @@ const getSchedulesReport = async (req, res) => {
     if (location_id) whereClause.location_id = location_id;
     if (status) whereClause.status = status;
 
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
+
     const schedules = await Schedule.findAll({
       where: whereClause,
       include: [
@@ -1791,6 +1837,17 @@ const exportSchedulesCSV = async (req, res) => {
     if (employee_id) whereClause.employee_id = employee_id;
     if (location_id) whereClause.location_id = location_id;
     if (status) whereClause.status = status;
+
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
 
     const schedules = await Schedule.findAll({
       where: whereClause,
@@ -1916,6 +1973,17 @@ const exportSchedulesByLocationCSV = async (req, res) => {
       whereClause.shift_date = { [Op.between]: [start_date, end_date] };
     if (employee_id) whereClause.employee_id = employee_id;
     if (location_id) whereClause.location_id = location_id;
+
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
 
     const schedules = await Schedule.findAll({
       where: whereClause,
@@ -3549,6 +3617,17 @@ const getEventView = async (req, res) => {
       scheduleWhereClause.status = tab;
     }
 
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      scheduleWhereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      scheduleWhereClause.organization_id = null;
+    }
+
     const schedules = await Schedule.findAll({
       where: scheduleWhereClause,
       include: [
@@ -4022,6 +4101,17 @@ const getAllEmployees = async (req, res) => {
     }
     if (type) {
       whereClause["$Employee.type$"] = type;
+    }
+
+    // Scope to organization (getAllEmployees)
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
     }
 
     const userWhereClause = {};

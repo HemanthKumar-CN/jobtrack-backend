@@ -14,7 +14,11 @@ const {
 } = require("../models");
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.findAll();
+    const where = {};
+    if (req.user.organizationId !== null) {
+      where.organization_id = req.user.organizationId;
+    }
+    const users = await User.findAll({ where });
     res.status(200).json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -41,7 +45,11 @@ exports.userLogin = async (req, res) => {
 
     // ✅ Generate JWT with role_name (no expiration - only expires on logout)
     const token = jwt.sign(
-      { userId: user.id, roleName: user.Role.name }, // ✅ Store roleName instead of role_id
+      {
+        userId: user.id,
+        roleName: user.Role.name,
+        organizationId: user.organization_id ?? null,
+      },
       process.env.JWT_SECRET,
       // No expiration set - token will only be invalidated on logout
     );
@@ -97,7 +105,11 @@ exports.userLogout = async (req, res) => {
 
 exports.createUser = async (req, res) => {
   try {
-    const user = await User.create(req.body);
+    const userData = {
+      ...req.body,
+      organization_id: req.user?.organizationId ?? null,
+    };
+    const user = await User.create(userData);
     res.status(201).json(user);
   } catch (error) {
     console.log("====", error);

@@ -44,6 +44,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: false,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "Events",
@@ -54,6 +62,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Event.associate = (models) => {
     Event.hasMany(models.EventLocation, { foreignKey: "event_id" });
+    Event.belongsTo(models.Organization, { foreignKey: "organization_id" });
   };
 
   return Event;

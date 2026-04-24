@@ -40,6 +40,12 @@ exports.searchEmployees = async (req, res) => {
       ],
       where: {
         status: "active",
+        ...(req.user?.organizationId !== null &&
+        req.user?.organizationId !== undefined
+          ? { organization_id: req.user.organizationId }
+          : req.user?.roleName !== "SUPER_ADMIN"
+            ? { organization_id: null }
+            : {}),
         [Op.or]: [
           {
             ges: {
