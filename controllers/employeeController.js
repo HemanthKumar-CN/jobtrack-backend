@@ -297,8 +297,11 @@ exports.getNotScheduledEmployees = async (req, res) => {
 
   let order = [];
   if (sortField === "snf") {
+    // Use NULLIF to safely skip blank/non-numeric snf values instead of hard-casting
     order.push([
-      Sequelize.cast(Sequelize.col("snf"), "INTEGER"),
+      Sequelize.literal(
+        `CAST(NULLIF(regexp_replace("Employee"."snf", '[^0-9]', '', 'g'), '') AS INTEGER)`,
+      ),
       sortOrder.toUpperCase(),
     ]);
   } else if (sortField && sortOrder) {
