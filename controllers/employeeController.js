@@ -310,12 +310,20 @@ exports.getNotScheduledEmployees = async (req, res) => {
     const startOfDay = moment.utc(date).startOf("day").toDate();
     const endOfDay = moment.utc(date).endOf("day").toDate();
 
+    const orgWhere =
+      req.user.organizationId != null
+        ? { organization_id: req.user.organizationId }
+        : req.user.roleName !== "SUPER_ADMIN"
+          ? { organization_id: null }
+          : {};
+
     const scheduled = await Schedule.findAll({
       where: {
         is_deleted: false,
         start_time: {
           [Op.between]: [startOfDay, endOfDay],
         },
+        ...orgWhere,
       },
       attributes: ["employee_id"],
       group: ["employee_id"],
@@ -337,6 +345,7 @@ exports.getNotScheduledEmployees = async (req, res) => {
         },
         status: "active", // Only active employees
         ...(type && { type }),
+        ...orgWhere,
       },
       order,
       attributes: [
