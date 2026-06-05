@@ -99,6 +99,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: true,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "admin_configs",
@@ -109,6 +117,9 @@ module.exports = (sequelize, DataTypes) => {
 
   AdminConfig.associate = (models) => {
     AdminConfig.belongsTo(models.User, { foreignKey: "user_id" });
+    AdminConfig.belongsTo(models.Organization, {
+      foreignKey: "organization_id",
+    });
   };
 
   return AdminConfig;

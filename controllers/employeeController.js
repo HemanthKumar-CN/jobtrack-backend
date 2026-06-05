@@ -89,6 +89,7 @@ exports.createEmployee = async (req, res) => {
         password: hashedPassword,
         role_id: 3, // Fixed role for employee
         image_url,
+        organization_id: req.user?.organizationId ?? null,
       },
       { transaction },
     );
@@ -98,6 +99,7 @@ exports.createEmployee = async (req, res) => {
     const newEmployee = await Employee.create(
       {
         user_id: newUser.id,
+        organization_id: req.user?.organizationId ?? null,
         address_1: address1,
         address_2: address2,
         city,
@@ -594,6 +596,17 @@ exports.getAllEmployees = async (req, res) => {
       ...(status && { status }),
       ...(typeFilter && { type: typeFilter }),
     };
+
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
 
     // 🔍 Building User filter clause
     const userWhereClause = {

@@ -8,7 +8,11 @@ exports.validAuth = async (req, res) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     console.log(decoded, "???????");
-    res.json({ auth: true, roleName: decoded.roleName });
+    res.json({
+      auth: true,
+      roleName: decoded.roleName,
+      organizationId: decoded.organizationId ?? null,
+    });
   } catch (err) {
     res.clearCookie("token"); // ✅ Remove expired token
     return res.status(401).json({ message: "Session expired" });

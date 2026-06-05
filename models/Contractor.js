@@ -65,6 +65,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "four",
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "Contractors",
@@ -76,6 +84,9 @@ module.exports = (sequelize, DataTypes) => {
   Contractor.associate = (models) => {
     Contractor.hasMany(models.EventLocationContractor, {
       foreignKey: "contractor_id",
+    });
+    Contractor.belongsTo(models.Organization, {
+      foreignKey: "organization_id",
     });
   };
 

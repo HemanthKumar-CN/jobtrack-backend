@@ -34,6 +34,7 @@ const createLocation = async (req, res) => {
       postal_code,
       image_url,
       colour_code,
+      organization_id: req.user.organizationId ?? null,
     });
 
     res.status(201).json(location);
@@ -88,6 +89,17 @@ const getLocations = async (req, res) => {
       whereClause.postal_code = { [Op.iLike]: `%${zip}%` };
     }
 
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
+
     // Allow only specific fields to sort by
     const allowedSortFields = ["name", "city", "state", "id"];
     const order = allowedSortFields.includes(sortField)
@@ -115,7 +127,18 @@ const getLocations = async (req, res) => {
 
 const getAllLocations = async (req, res) => {
   try {
+    const where = {};
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      where.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      where.organization_id = null;
+    }
     const locations = await Location.findAll({
+      where,
       order: [["id", "ASC"]], // Keep ordering if needed
       attributes: ["id", "name"], // Fetch only id & name
     });

@@ -17,6 +17,17 @@ const getAllClassifications = async (req, res) => {
     ];
   }
 
+  // Scope to organization
+  if (
+    req.user &&
+    req.user.organizationId !== null &&
+    req.user.organizationId !== undefined
+  ) {
+    where.organization_id = req.user.organizationId;
+  } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+    where.organization_id = null;
+  }
+
   try {
     const classifications = await Classification.findAll({
       where,
@@ -102,6 +113,7 @@ const createClassification = async (req, res) => {
         description,
         status,
         orderNumber,
+        organization_id: req.user?.organizationId ?? null,
       });
       createdClassifications.push(newClassification);
     }

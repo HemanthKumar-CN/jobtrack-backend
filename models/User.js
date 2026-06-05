@@ -101,6 +101,14 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DATE,
         allowNull: true,
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "users",
@@ -115,6 +123,7 @@ module.exports = (sequelize, DataTypes) => {
     User.belongsTo(models.Role, { foreignKey: "role_id" });
     User.hasOne(models.Employee, { foreignKey: "user_id" });
     User.hasOne(models.AdminConfig, { foreignKey: "user_id" });
+    User.belongsTo(models.Organization, { foreignKey: "organization_id" });
   };
 
   return User;

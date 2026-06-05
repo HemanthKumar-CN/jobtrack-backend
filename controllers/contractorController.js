@@ -47,6 +47,17 @@ const getAllContractors = async (req, res) => {
       whereClause.phone = { [Op.iLike]: `%${phone}%` };
     }
 
+    // Scope to organization
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      whereClause.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      whereClause.organization_id = null;
+    }
+
     const contractors = await Contractor.findAll({
       where: whereClause,
       // limit: parseInt(limit),
@@ -71,8 +82,18 @@ const getAllContractors = async (req, res) => {
 
 const getContractsDropdown = async (req, res) => {
   try {
+    const where = { status: "active" };
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      where.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      where.organization_id = null;
+    }
     const contractors = await Contractor.findAll({
-      where: { status: "active" },
+      where,
       attributes: ["id", "company_name"], // Fetch only id & company_name
       order: [["id", "ASC"]],
     });
@@ -128,6 +149,7 @@ const createContractor = async (req, res) => {
       hourly_rate:
         hourly_rate && hourly_rate !== "" ? parseFloat(hourly_rate) : null,
       employee_id_field: employee_id_field || "four",
+      organization_id: req.user.organizationId ?? null,
       created_at: new Date(), // Ensure created_at is set
       updated_at: new Date(),
     });
@@ -144,8 +166,18 @@ const createContractor = async (req, res) => {
 
 const getAllContractorsWhoAreEmployers = async (req, res) => {
   try {
+    const where = { is_employer: true };
+    if (
+      req.user &&
+      req.user.organizationId !== null &&
+      req.user.organizationId !== undefined
+    ) {
+      where.organization_id = req.user.organizationId;
+    } else if (req.user && req.user.roleName !== "SUPER_ADMIN") {
+      where.organization_id = null;
+    }
     const employers = await Contractor.findAll({
-      where: { is_employer: true },
+      where,
       attributes: ["id", "company_name"],
       order: [["company_name", "ASC"]],
     });

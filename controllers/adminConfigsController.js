@@ -3,9 +3,12 @@ const { AdminConfig } = require("../models");
 const getAdminConfigs = async (req, res) => {
   console.log("Fetching AdminConfig for user:", req.user);
   try {
-    const config = await AdminConfig.findOne({
-      where: { user_id: req.user.userId },
-    });
+    const where =
+      req.user.organizationId !== null && req.user.organizationId !== undefined
+        ? { organization_id: req.user.organizationId }
+        : { user_id: req.user.userId };
+
+    const config = await AdminConfig.findOne({ where });
 
     if (!config) {
       return res
@@ -32,6 +35,7 @@ const createOrUpdateAdminConfig = async (req, res) => {
       // create blank config first
       config = await AdminConfig.create({
         user_id: req.user.userId,
+        organization_id: req.user.organizationId ?? null,
         new_schedule_message: null,
         update_schedule_message: null,
       });
@@ -133,9 +137,12 @@ const updateOrganization = async (req, res) => {
 
 const getLabels = async (req, res) => {
   try {
-    const config = await AdminConfig.findOne({
-      where: { user_id: req.user.userId },
-    });
+    const where =
+      req.user.organizationId !== null && req.user.organizationId !== undefined
+        ? { organization_id: req.user.organizationId }
+        : { user_id: req.user.userId };
+
+    const config = await AdminConfig.findOne({ where });
 
     // Return empty object if no config exists (frontend will use defaults)
     if (!config) {

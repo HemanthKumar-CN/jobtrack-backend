@@ -1,6 +1,6 @@
 const jwt = require("jsonwebtoken");
 
-exports.authenticateUser = (req, res, next) => {
+exports.authenticateSuperAdmin = (req, res, next) => {
   try {
     const token = req.cookies.token;
 
@@ -9,8 +9,12 @@ exports.authenticateUser = (req, res, next) => {
         .status(401)
         .json({ message: "Access denied. No token provided." });
 
-    // ✅ Verify JWT and get role_name
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.roleName !== "SUPER_ADMIN") {
+      return res.status(403).json({ message: "Forbidden. Super admin only." });
+    }
+
     req.user = {
       userId: decoded.userId,
       roleName: decoded.roleName,

@@ -24,6 +24,14 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "Other",
       },
+      organization_id: {
+        type: DataTypes.INTEGER,
+        allowNull: true,
+        references: {
+          model: "organizations",
+          key: "id",
+        },
+      },
     },
     {
       tableName: "restrictions",
@@ -38,6 +46,9 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "restriction_id",
       otherKey: "employee_id",
       as: "employees", // optional but good practice
+    });
+    Restriction.belongsTo(models.Organization, {
+      foreignKey: "organization_id",
     });
   };
 
