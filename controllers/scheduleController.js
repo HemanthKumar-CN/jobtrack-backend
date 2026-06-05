@@ -1380,26 +1380,32 @@ const employeeSchedules = async (req, res) => {
     const { employee_id } = req.params;
     const { status, startDate, endDate } = req.query;
 
-    const employeeId = await Employee.findOne({
-      where: {
-        user_id: req.user.userId,
-      },
-      attributes: ["id"],
-    });
-
-    console.log(employeeId.getDataValue("id"), "????----Employeeeeee");
+    // Admins pass employee_id in URL; employees see their own schedules
+    let resolvedEmployeeId;
+    if (
+      req.user.roleName === "ADMIN" ||
+      req.user.roleName === "SUPER_ADMIN"
+    ) {
+      resolvedEmployeeId = employee_id;
+    } else {
+      const employeeRecord = await Employee.findOne({
+        where: { user_id: req.user.userId },
+        attributes: ["id"],
+      });
+      if (!employeeRecord) {
+        return res.status(404).json({ success: false, message: "Employee not found" });
+      }
+      resolvedEmployeeId = employeeRecord.getDataValue("id");
+    }
 
     let whereCondition = {
-      employee_id: employeeId.getDataValue("id"),
+      employee_id: resolvedEmployeeId,
       is_deleted: false,
     };
 
-    // Filter by status (optional)
     if (status) {
       whereCondition.status = status;
     }
-
-    console.log(startDate, endDate, "??????????");
 
     if (startDate && endDate) {
       whereCondition.start_time = {
@@ -1407,45 +1413,16 @@ const employeeSchedules = async (req, res) => {
       };
     }
 
-    console.log(whereCondition, "?????........");
-
-    // const schedules = await Schedule.findAll({
-    //   where: whereCondition,
-
-    //   include: [
-    //     // { model: Employee, attributes: ["id", "name", "email"] },
-    //     {
-    //       model: Event,
-    //       attributes: ["id", "event_name"],
-    //       include: [
-    //         {
-    //           model: Location,
-    //           attributes: [
-    //             "name",
-    //             "address_1",
-    //             "address_2",
-    //             "city",
-    //             "state",
-    //             "postal_code",
-    //             "image_url",
-    //             "colour_code",
-    //           ],
-    //         },
-    //       ],
-    //     },
-    //   ],
-    //   order: [
-    //     ["start_date", "ASC"],
-    //     ["start_time", "ASC"],
-    //   ],
-    // });
-
     const schedules = await Schedule.findAll({
       where: whereCondition,
       include: [
         {
           model: Event,
           attributes: ["id", "event_name", "start_date", "end_date"],
+        },
+        {
+          model: EventLocationContractor,
+          attributes: ["id"],
           include: [
             {
               model: EventLocation,
@@ -1453,27 +1430,25 @@ const employeeSchedules = async (req, res) => {
               include: [
                 {
                   model: Location,
-                  attributes: [
-                    "id",
-                    "name",
-                    "address_1",
-                    "address_2",
-                    "city",
-                    "state",
-                    "postal_code",
-                    "image_url",
-                    "colour_code",
-                  ],
+                  attributes: ["id", "name", "city", "state"],
                 },
               ],
             },
           ],
         },
+        {
+          model: ContractorClass,
+          attributes: ["id"],
+          include: [
+            {
+              model: Classification,
+              attributes: ["id", "name", "abbreviation"],
+            },
+          ],
+        },
       ],
-      order: [["start_time", "ASC"]],
+      order: [["start_time", "DESC"]],
     });
-
-    console.log(schedules, "???????///////////////");
 
     return res.json({ success: true, data: schedules });
   } catch (error) {
