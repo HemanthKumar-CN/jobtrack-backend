@@ -1382,10 +1382,7 @@ const employeeSchedules = async (req, res) => {
 
     // Admins pass employee_id in URL; employees see their own schedules
     let resolvedEmployeeId;
-    if (
-      req.user.roleName === "ADMIN" ||
-      req.user.roleName === "SUPER_ADMIN"
-    ) {
+    if (req.user.roleName === "ADMIN" || req.user.roleName === "SUPER_ADMIN") {
       resolvedEmployeeId = employee_id;
     } else {
       const employeeRecord = await Employee.findOne({
@@ -1393,7 +1390,9 @@ const employeeSchedules = async (req, res) => {
         attributes: ["id"],
       });
       if (!employeeRecord) {
-        return res.status(404).json({ success: false, message: "Employee not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "Employee not found" });
       }
       resolvedEmployeeId = employeeRecord.getDataValue("id");
     }
