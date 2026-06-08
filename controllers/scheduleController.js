@@ -1441,7 +1441,8 @@ const employeeSchedules = async (req, res) => {
           include: [
             {
               model: Classification,
-              attributes: ["id", "name", "abbreviation"],
+              as: "classification",
+              attributes: ["id", "abbreviation", "description"],
             },
           ],
         },
