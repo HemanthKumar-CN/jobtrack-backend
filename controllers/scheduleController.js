@@ -1378,28 +1378,33 @@ const eventList = async (req, res) => {
 const employeeSchedules = async (req, res) => {
   try {
     const { employee_id } = req.params;
-    const { status, startDate, endDate } = req.query;
+    const { status, startDate, endDate, sortBy, sortOrder } = req.query;
 
-    const employeeId = await Employee.findOne({
-      where: {
-        user_id: req.user.userId,
-      },
-      attributes: ["id"],
-    });
-
-    console.log(employeeId.getDataValue("id"), "????----Employeeeeee");
+    // Admins pass employee_id in URL; employees see their own schedules
+    let resolvedEmployeeId;
+    if (req.user.roleName === "ADMIN" || req.user.roleName === "SUPER_ADMIN") {
+      resolvedEmployeeId = employee_id;
+    } else {
+      const employeeRecord = await Employee.findOne({
+        where: { user_id: req.user.userId },
+        attributes: ["id"],
+      });
+      if (!employeeRecord) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Employee not found" });
+      }
+      resolvedEmployeeId = employeeRecord.getDataValue("id");
+    }
 
     let whereCondition = {
-      employee_id: employeeId.getDataValue("id"),
+      employee_id: resolvedEmployeeId,
       is_deleted: false,
     };
 
-    // Filter by status (optional)
     if (status) {
       whereCondition.status = status;
     }
-
-    console.log(startDate, endDate, "??????????");
 
     if (startDate && endDate) {
       whereCondition.start_time = {
@@ -1407,38 +1412,48 @@ const employeeSchedules = async (req, res) => {
       };
     }
 
-    console.log(whereCondition, "?????........");
+    const normalizedSortOrder =
+      String(sortOrder || "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
 
-    // const schedules = await Schedule.findAll({
-    //   where: whereCondition,
+    let order = [["start_time", normalizedSortOrder]];
 
-    //   include: [
-    //     // { model: Employee, attributes: ["id", "name", "email"] },
-    //     {
-    //       model: Event,
-    //       attributes: ["id", "event_name"],
-    //       include: [
-    //         {
-    //           model: Location,
-    //           attributes: [
-    //             "name",
-    //             "address_1",
-    //             "address_2",
-    //             "city",
-    //             "state",
-    //             "postal_code",
-    //             "image_url",
-    //             "colour_code",
-    //           ],
-    //         },
-    //       ],
-    //     },
-    //   ],
-    //   order: [
-    //     ["start_date", "ASC"],
-    //     ["start_time", "ASC"],
-    //   ],
-    // });
+    if (sortBy) {
+      switch (sortBy) {
+        case "date":
+        case "start_time":
+          order = [["start_time", normalizedSortOrder]];
+          break;
+        case "event_name":
+          order = [[{ model: Event }, "event_name", normalizedSortOrder]];
+          break;
+        case "location":
+          order = [
+            [
+              { model: EventLocationContractor },
+              { model: EventLocation },
+              { model: Location },
+              "name",
+              normalizedSortOrder,
+            ],
+          ];
+          break;
+        case "classification":
+          order = [
+            [
+              { model: ContractorClass },
+              { model: Classification, as: "classification" },
+              "abbreviation",
+              normalizedSortOrder,
+            ],
+          ];
+          break;
+        case "status":
+          order = [["status", normalizedSortOrder]];
+          break;
+        default:
+          order = [["start_time", "DESC"]];
+      }
+    }
 
     const schedules = await Schedule.findAll({
       where: whereCondition,
@@ -1446,6 +1461,10 @@ const employeeSchedules = async (req, res) => {
         {
           model: Event,
           attributes: ["id", "event_name", "start_date", "end_date"],
+        },
+        {
+          model: EventLocationContractor,
+          attributes: ["id"],
           include: [
             {
               model: EventLocation,
@@ -1453,27 +1472,26 @@ const employeeSchedules = async (req, res) => {
               include: [
                 {
                   model: Location,
-                  attributes: [
-                    "id",
-                    "name",
-                    "address_1",
-                    "address_2",
-                    "city",
-                    "state",
-                    "postal_code",
-                    "image_url",
-                    "colour_code",
-                  ],
+                  attributes: ["id", "name", "city", "state"],
                 },
               ],
             },
           ],
         },
+        {
+          model: ContractorClass,
+          attributes: ["id"],
+          include: [
+            {
+              model: Classification,
+              as: "classification",
+              attributes: ["id", "abbreviation", "description"],
+            },
+          ],
+        },
       ],
-      order: [["start_time", "ASC"]],
+      order,
     });
-
-    console.log(schedules, "???????///////////////");
 
     return res.json({ success: true, data: schedules });
   } catch (error) {
