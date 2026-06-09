@@ -1378,7 +1378,7 @@ const eventList = async (req, res) => {
 const employeeSchedules = async (req, res) => {
   try {
     const { employee_id } = req.params;
-    const { status, startDate, endDate } = req.query;
+    const { status, startDate, endDate, sortBy, sortOrder } = req.query;
 
     // Admins pass employee_id in URL; employees see their own schedules
     let resolvedEmployeeId;
@@ -1410,6 +1410,49 @@ const employeeSchedules = async (req, res) => {
       whereCondition.start_time = {
         [Op.between]: [new Date(startDate), new Date(endDate)],
       };
+    }
+
+    const normalizedSortOrder =
+      String(sortOrder || "desc").toUpperCase() === "ASC" ? "ASC" : "DESC";
+
+    let order = [["start_time", normalizedSortOrder]];
+
+    if (sortBy) {
+      switch (sortBy) {
+        case "date":
+        case "start_time":
+          order = [["start_time", normalizedSortOrder]];
+          break;
+        case "event_name":
+          order = [[{ model: Event }, "event_name", normalizedSortOrder]];
+          break;
+        case "location":
+          order = [
+            [
+              { model: EventLocationContractor },
+              { model: EventLocation },
+              { model: Location },
+              "name",
+              normalizedSortOrder,
+            ],
+          ];
+          break;
+        case "classification":
+          order = [
+            [
+              { model: ContractorClass },
+              { model: Classification, as: "classification" },
+              "abbreviation",
+              normalizedSortOrder,
+            ],
+          ];
+          break;
+        case "status":
+          order = [["status", normalizedSortOrder]];
+          break;
+        default:
+          order = [["start_time", "DESC"]];
+      }
     }
 
     const schedules = await Schedule.findAll({
@@ -1447,7 +1490,7 @@ const employeeSchedules = async (req, res) => {
           ],
         },
       ],
-      order: [["start_time", "DESC"]],
+      order,
     });
 
     return res.json({ success: true, data: schedules });
