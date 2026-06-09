@@ -1,4 +1,4 @@
-// ✅ First line: Set up logging
+// ✅ First line: Set up logging info
 require("./logger");
 
 require("dotenv").config();
